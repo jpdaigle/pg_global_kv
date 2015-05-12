@@ -1,0 +1,18 @@
+apply plugin: 'java'
+apply plugin: 'application'
+
+sourceCompatibility = 1.8
+version = '1.0'
+
+
+mainClassName = "com.tripadvisor.postgres.pg_kv_daemon.Replicationd"
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    testCompile group: 'junit', name: 'junit', version: '4.11'
+    compile 'org.postgresql:postgresql:9.3-1103-jdbc41'
+
+}
