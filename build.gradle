@@ -17,4 +17,7 @@ dependencies {
     compile 'org.postgresql:postgresql:9.3-1103-jdbc41'
     compile 'org.jdbi:jdbi:2.62'
 
+    compile group: 'org.apache.logging.log4j', name: 'log4j-api', version: '2.2'
+    compile group: 'org.apache.logging.log4j', name: 'log4j-core', version: '2.2'
+
 }

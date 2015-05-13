@@ -17,7 +17,8 @@ public class Replicationd
         //Bootstrap the postgres driver
         Class.forName("org.postgresql.Driver");
 
-        DBI dbi = new DBI("jdbc:postgresql://localhost/kv_stats");
+        //TODO Make configurable / or an argument
+        DBI dbi = new DBI("jdbc:postgresql://localhost/kv_catalog");
         Handle h = dbi.open();
 
 
@@ -25,23 +26,22 @@ public class Replicationd
         List<Future<Object>> jobFutures = new ArrayList<>();
 
 
-        h.createQuery("SELECT hostname, port, shard_name FROM kv.local_shard_instances").forEach(row -> {
+        h.createQuery(
+                "SELECT shard_name, id, hostname, port, source_id, source_hostname, source_port FROM replication_topology"
+        ).forEach(row -> {
             DBI shardDBI = new DBI(String.format("jdbc:postgresql://%s:%s/%s",
                     row.get("hostname"), row.get("port"), row.get("shard_name")));
 
-            List<Integer> peersForReplication = shardDBI.withHandle(shardHandle -> shardHandle.createQuery(
-                        "SELECT instance_id FROM kv.local_shard_instances " +
-                                "WHERE shard_name = current_database() AND instance_id <> (SELECT id FROM kv.my_instance_id)")
-                        .map(IntegerMapper.FIRST)
-                        .list()
+            ReplicationTask task = new ReplicationTask(
+                    shardDBI,
+                    (Integer) row.get("source_id"),
+                    (String)  row.get("source_hostname"),
+                    (Integer) row.get("source_port")
             );
-
-            for (int peerId: peersForReplication) {
-                jobFutures.add(
-                        executor.submit(new ReplicationTask(shardDBI, peerId))
-                );
-            }
+            jobFutures.add(executor.submit(task));
         });
+
+        executor.shutdown();
 
 
 
