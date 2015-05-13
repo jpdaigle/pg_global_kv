@@ -10,7 +10,6 @@ CREATE TABLE shard_instance (
   shard_name  text   REFERENCES shard_name(name)
 );
 
-
 /*
 CREATE TABLE ip_addresses (
   hostname    text  PRIMARY KEY,
