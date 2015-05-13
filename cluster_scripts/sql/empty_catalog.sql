@@ -10,6 +10,18 @@ CREATE TABLE shard_instance (
   shard_name  text   REFERENCES shard_name(name)
 );
 
+CREATE VIEW replication_topology AS
+  SELECT
+    shard_name,
+    inst.instance_id id,
+    inst.hostname,
+    inst.port,
+    source.instance_id source_id,
+    source.hostname source_hostname,
+    source.port source_port
+  FROM shard_instance inst JOIN shard_instance source USING (shard_name)
+  WHERE inst.instance_id <> source.instance_id;
+
 /*
 CREATE TABLE ip_addresses (
   hostname    text  PRIMARY KEY,
