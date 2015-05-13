@@ -1,4 +1,11 @@
 build/
 .gradle/
+
+
+
+
+# Intellij files
 .idea/
 *.iml
+*.ipr
+*.iws
