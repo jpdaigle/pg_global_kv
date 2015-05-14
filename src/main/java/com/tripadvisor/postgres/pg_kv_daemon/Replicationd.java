@@ -42,6 +42,9 @@ public class Replicationd
             jobFutures.add(executor.submit(task));
         });
 
+        // Create the statistics polling thread
+        jobFutures.add(executor.submit(new StatsTask(dbi)));
+
         executor.shutdown();
 
 

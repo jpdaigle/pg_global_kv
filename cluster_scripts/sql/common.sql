@@ -1,6 +1,7 @@
 CREATE SCHEMA kv;
 CREATE SCHEMA kv_config;
 CREATE SCHEMA kv_remotes;
+CREATE SCHEMA kv_stats;
 
 
 -----------------------------------------
