@@ -18,4 +18,8 @@ fi
 
 $PSQL_GLOBAL -c "CREATE DATABASE $DATABASE;"
 
-psql -h $HOST -p $PORT -U $ADMIN_USER $DATABASE -1 -v ON_ERROR_STOP=1 -f $SETUP_SQL
+PSQL_SHARD="psql -h $HOST -p $PORT -U $ADMIN_USER $DATABASE -1 -v ON_ERROR_STOP=1"
+
+$PSQL_SHARD -f sql/common.sql
+$PSQL_SHARD -c "INSERT INTO kv_config.my_info(hostname) VALUES ('$HOST');"
+$PSQL_SHARD -f $SETUP_SQL

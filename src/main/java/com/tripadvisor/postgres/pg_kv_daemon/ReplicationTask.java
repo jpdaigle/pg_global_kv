@@ -70,12 +70,9 @@ public class ReplicationTask implements Callable<Object>
         catch (CallbackFailedException e)
         {
             LOGGER.error("Unable to ensure valid connection config to remote server", e);
+            System.exit(1);
         }
 
-
-
-
-        System.out.println(toString());
         return null;
     }
 

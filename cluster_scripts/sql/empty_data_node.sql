@@ -1,5 +1,3 @@
-\i sql/common.sql
-
 -----------------------------------------
 -- Types
 -----------------------------------------
@@ -161,23 +159,6 @@ END;
 $$
 LANGUAGE plpgsql;
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 CREATE FUNCTION kv_config.ensureRemoteShardConnection(hostname text, port int, dbname text) RETURNS text AS $$
 DECLARE
   server_name text := format('server_%s_%s_%s', hostname, port, dbname);
@@ -224,12 +205,3 @@ BEGIN
   UPDATE kv.peer_status_from SET min_horizon = buffer_ts WHERE peer = peer_id;
 END;
 $$ LANGUAGE plpgsql;
-
-
-
-
-CREATE TABLE kv_config.my_info (
-  instance_id   int    NOT NULL,
-  hostname      text   NOT NULL
-);
-CREATE UNIQUE INDEX my_info_single_row ON kv_config.my_info ((true));

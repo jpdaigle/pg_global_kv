@@ -1,6 +1,10 @@
-
 CREATE TABLE shard_name (
   name text PRIMARY KEY
+);
+
+CREATE TABLE catalog_instance (
+  hostname    text   NOT NULL,
+  port        int    NOT NULL DEFAULT 5432
 );
 
 CREATE TABLE shard_instance (
@@ -21,6 +25,7 @@ CREATE VIEW replication_topology AS
     source.port source_port
   FROM shard_instance inst JOIN shard_instance source USING (shard_name)
   WHERE inst.instance_id <> source.instance_id;
+
 
 /*
 CREATE TABLE ip_addresses (
