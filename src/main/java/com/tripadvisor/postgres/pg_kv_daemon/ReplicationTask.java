@@ -1,13 +1,14 @@
 package com.tripadvisor.postgres.pg_kv_daemon;
 
+import com.google.common.util.concurrent.Uninterruptibles;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.skife.jdbi.v2.DBI;
-import org.skife.jdbi.v2.Handle;
-import org.skife.jdbi.v2.OutParameters;
+import org.skife.jdbi.v2.*;
 import org.skife.jdbi.v2.exceptions.CallbackFailedException;
+import org.skife.jdbi.v2.util.StringMapper;
 
 import java.util.concurrent.Callable;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Created by mkelly on 5/13/15.
@@ -18,15 +19,17 @@ public class ReplicationTask implements Callable<Object>
     private final static Logger LOGGER = LogManager.getLogger();
 
     private final DBI m_shardDBI;
+    private final String m_shardName;
     private final int m_sourceId;
     private final String m_sourceHost;
     private final int m_sourcePort;
 
 
 
-    public ReplicationTask(DBI shardDBI, int sourceId, String sourceHost, int sourcePort)
+    public ReplicationTask(DBI shardDBI, String shardName, int sourceId, String sourceHost, int sourcePort)
     {
         m_shardDBI = shardDBI;
+        m_shardName = shardName;
         m_sourceId = sourceId;
         m_sourceHost = sourceHost;
         m_sourcePort = sourcePort;
@@ -37,7 +40,32 @@ public class ReplicationTask implements Callable<Object>
     {
         try
         {
-            m_shardDBI.withHandle(this::ensureRemoteConfig);
+            String table = m_shardDBI.withHandle(this::ensureRemoteConfig);
+
+            // Outer loop for reconnecting on error
+            while(true)
+            {
+                try (Handle handle = m_shardDBI.open())
+                {
+                    Update update = handle.createStatement("SELECT kv.replicate(:table, :source_id);")
+                            .bind("table", table)
+                            .bind("source_id", m_sourceId);
+
+                    // This is the main replication loop.
+                    while (true)
+                    {
+                        update.execute();
+                        Uninterruptibles.sleepUninterruptibly(100, TimeUnit.MILLISECONDS);
+                    }
+
+                }
+                catch (Exception e)
+                {
+                    LOGGER.error("Replication error", e);
+                    Uninterruptibles.sleepUninterruptibly(5, TimeUnit.SECONDS);
+                }
+            }
+
         }
         catch (CallbackFailedException e)
         {
@@ -45,16 +73,19 @@ public class ReplicationTask implements Callable<Object>
         }
 
 
+
+
         System.out.println(toString());
         return null;
     }
 
-    private OutParameters ensureRemoteConfig(Handle h)
+    private String ensureRemoteConfig(Handle h)
     {
-        return h.createCall("{call kv_config.ensureRemoteShardConnection(:host, :port)}")
+        return h.createQuery("SELECT kv_config.ensureRemoteShardConnection(:host, :port, :dbname)")
                 .bind("host", m_sourceHost)
                 .bind("port", m_sourcePort)
-                .invoke();
+                .bind("dbname", m_shardName)
+                .map(StringMapper.FIRST).first();
     }
 
 

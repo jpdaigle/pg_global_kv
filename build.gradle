@@ -20,4 +20,6 @@ dependencies {
     compile group: 'org.apache.logging.log4j', name: 'log4j-api', version: '2.2'
     compile group: 'org.apache.logging.log4j', name: 'log4j-core', version: '2.2'
 
+    compile 'com.google.guava:guava:18.0'
+
 }

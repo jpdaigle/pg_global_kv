@@ -34,6 +34,7 @@ public class Replicationd
 
             ReplicationTask task = new ReplicationTask(
                     shardDBI,
+                    (String)  row.get("shard_name"),
                     (Integer) row.get("source_id"),
                     (String)  row.get("source_hostname"),
                     (Integer) row.get("source_port")
