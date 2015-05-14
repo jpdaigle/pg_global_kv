@@ -10,5 +10,5 @@ export PRIMARY_CATALOG_DATABASE=kv_catalog
 export PSQL_CATALOG="psql -h $PRIMARY_CATALOG_HOST -p $PRIMARY_CATALOG_PORT $PRIMARY_CATALOG_DATABASE"
 
 
-# Dev only settings
-export RECREATE_EXISITING_NODES=true
+# Does some extra steps to make it easier to develop.
+export DEV_MODE=true
