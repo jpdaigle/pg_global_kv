@@ -26,10 +26,3 @@ CREATE VIEW replication_topology AS
   FROM shard_instance inst JOIN shard_instance source USING (shard_name)
   WHERE inst.instance_id <> source.instance_id;
 
-
-/*
-CREATE TABLE ip_addresses (
-  hostname    text  PRIMARY KEY,
-  ip          inet  NOT NULL
-);
-*/
