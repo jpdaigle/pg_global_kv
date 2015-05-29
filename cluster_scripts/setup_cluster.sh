@@ -8,6 +8,8 @@ while read HOSTNAME PORT; do
   util/create_node.sh $HOSTNAME $PORT $PRIMARY_CATALOG_DATABASE sql/empty_catalog.sql
 done
 
+$PSQL_CATALOG -c 'SELECT kv_config.push_catalog_changes()'
+
 $PSQL_CATALOG -c 'COPY (SELECT * FROM shard_instance) TO stdout' |
 while read ID HOSTNAME PORT SHARD_NAME; do
   util/create_node.sh $HOSTNAME $PORT $SHARD_NAME <(echo "
