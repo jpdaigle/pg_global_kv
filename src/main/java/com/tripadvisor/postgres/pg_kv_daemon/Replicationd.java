@@ -17,8 +17,14 @@ public class Replicationd
         //Bootstrap the postgres driver
         Class.forName("org.postgresql.Driver");
 
-        //TODO Make configurable / or an argument
-        DBI dbi = new DBI("jdbc:postgresql://localhost/kv_catalog");
+        String catalogConString = "jdbc:postgresql://localhost/kv_catalog";
+
+        if(args.length >= 1)
+        {
+            catalogConString = args[0];
+        }
+        
+        DBI dbi = new DBI(catalogConString);
         Handle h = dbi.open();
 
 
@@ -27,7 +33,7 @@ public class Replicationd
 
 
         h.createQuery(
-                "SELECT shard_name, id, hostname, port, source_id, source_hostname, source_port FROM replication_topology"
+                "SELECT shard_name, id, hostname, port, source_id, source_hostname, source_port FROM local_replication_topology"
         ).forEach(row -> {
             DBI shardDBI = new DBI(String.format("jdbc:postgresql://%s:%s/%s",
                     row.get("hostname"), row.get("port"), row.get("shard_name")));
@@ -47,7 +53,7 @@ public class Replicationd
 
         executor.shutdown();
 
-
+        //TODO reload config on NOTIFY config_push
 
 
 

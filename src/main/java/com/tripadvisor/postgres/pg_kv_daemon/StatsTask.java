@@ -38,7 +38,7 @@ public class StatsTask implements Callable<Object>
                 while (true)
                 {
                     update.execute();
-                    Uninterruptibles.sleepUninterruptibly(100, TimeUnit.MILLISECONDS);
+                    Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
                 }
 
             }

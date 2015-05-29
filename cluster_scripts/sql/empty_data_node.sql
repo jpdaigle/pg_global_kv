@@ -137,9 +137,8 @@ BEGIN
   END LOOP;
 
   -- If we got here we tried 5 times and failed.  That should be impossible (at most we should ever make two passes
-  -- through this code).  It is an unexpected case but sending the database into an infinite loop does not seem
-  -- is really a bad idea.  Lets raise an error; because failing a single request is far better than bringing
-  -- the server down.
+  -- through this code).  It is an unexpected case but sending the database into an infinite loop is really a bad idea.
+  -- Lets raise an error; because failing a single request is far better than bringing the server down.
   RAISE 'Upsert failed!  Completely unexpected. Is there high concurrency on this single row?';
 END;
 $$
@@ -161,24 +160,15 @@ LANGUAGE plpgsql;
 
 CREATE FUNCTION kv_config.ensureRemoteShardConnection(hostname text, port int, dbname text) RETURNS text AS $$
 DECLARE
-  server_name text := format('server_%s_%s_%s', hostname, port, dbname);
-  table_name text := format('kv_remotes.t_%s_%s_%s', hostname, port, dbname);
+  server_name text;
 BEGIN
-  EXECUTE format('DROP SERVER IF EXISTS %I CASCADE', server_name);
-  EXECUTE format('CREATE SERVER %I FOREIGN DATA WRAPPER postgres_fdw OPTIONS
-                    (host %L, port %L, dbname %L)', server_name, hostname, port, dbname);
-  EXECUTE format('CREATE USER MAPPING FOR PUBLIC SERVER %I', server_name);
-  EXECUTE format('CREATE FOREIGN TABLE %s(
-                          namespace  kv.namespace,
-			  peer       int,
-			  ts         timestamp with time zone,
-			  expiration kv.expiration_policy,
-			  key        kv.key,
-			  value      json
-	          ) SERVER %I OPTIONS (schema_name %L, table_name %L)', table_name, server_name, 'kv', 't_kv');
-
-  RETURN table_name;
-
+  server_name = kv_config.ensure_foreign_server(hostname, port, dbname);
+  PERFORM kv_config.ensure_user_mapping(server_name);
+  RETURN kv_config.ensure_foreign_table(
+    server_name,
+    'kv',
+    't_kv'
+  );
 END;
 $$ LANGUAGE plpgsql;
 
@@ -199,7 +189,7 @@ BEGIN
     buffer_ts = horizon + '5 seconds';
   END IF;
   
-  EXECUTE format('SELECT kv._put(namespace, key, value, expiration, ts, peer)
+  EXECUTE format('SELECT kv._put(namespace::kv.namespace, key::kv.key, value, expiration::kv.expiration_policy, ts, peer)
                     FROM %s WHERE ts > %L AND ts <= %L AND peer = %L',
 		  remote_table, horizon, buffer_ts, peer_id);
   UPDATE kv.peer_status_from SET min_horizon = buffer_ts WHERE peer = peer_id;
