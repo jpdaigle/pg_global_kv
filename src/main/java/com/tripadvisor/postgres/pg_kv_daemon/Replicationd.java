@@ -23,7 +23,7 @@ public class Replicationd
         {
             catalogConString = args[0];
         }
-        
+
         DBI dbi = new DBI(catalogConString);
         Handle h = dbi.open();
 
