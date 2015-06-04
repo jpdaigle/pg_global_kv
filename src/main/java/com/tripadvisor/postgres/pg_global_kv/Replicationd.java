@@ -1,8 +1,7 @@
-package com.tripadvisor.postgres.pg_kv_daemon;
+package com.tripadvisor.postgres.pg_global_kv;
 
 import org.skife.jdbi.v2.DBI;
 import org.skife.jdbi.v2.Handle;
-import org.skife.jdbi.v2.util.IntegerMapper;
 
 import java.util.ArrayList;
 import java.util.List;

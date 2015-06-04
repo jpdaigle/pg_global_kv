@@ -6,7 +6,7 @@ sourceCompatibility = 1.8
 version = '1.0'
 
 
-mainClassName = "com.tripadvisor.postgres.pg_kv_daemon.Replicationd"
+mainClassName = "com.tripadvisor.postgres.pg_global_kv.Replicationd"
 
 repositories {
     mavenCentral()

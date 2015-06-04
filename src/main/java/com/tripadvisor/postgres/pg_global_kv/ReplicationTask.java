@@ -1,4 +1,4 @@
-package com.tripadvisor.postgres.pg_kv_daemon;
+package com.tripadvisor.postgres.pg_global_kv;
 
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.apache.logging.log4j.LogManager;
