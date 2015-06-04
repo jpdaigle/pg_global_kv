@@ -11,4 +11,5 @@ export PSQL_CATALOG="psql -h $PRIMARY_CATALOG_HOST -p $PRIMARY_CATALOG_PORT $PRI
 
 
 # Does some extra steps to make it easier to develop.
+# TODO turn off by default when installing.
 export DEV_MODE=true
