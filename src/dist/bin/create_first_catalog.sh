@@ -12,4 +12,4 @@ fi
 echo
 echo "Log into the catalog db and configure everything properly:"
 echo "  $PSQL_CATALOG"
-echo "Then run ./setup_cluster.sh"
+echo "Then run ./setup_parade.sh"
