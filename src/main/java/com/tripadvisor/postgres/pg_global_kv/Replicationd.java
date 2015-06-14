@@ -16,7 +16,8 @@ public class Replicationd
         //Bootstrap the postgres driver
         Class.forName("org.postgresql.Driver");
 
-        String catalogConString = "jdbc:postgresql://localhost/kv_catalog";
+        String catalogConString = "jdbc:postgresql://localhost/kv_catalog?" +
+                "user=kv_replicationd&ApplicationName=replicationd_init_and_stats";
 
         if(args.length >= 1)
         {
@@ -34,8 +35,10 @@ public class Replicationd
         h.createQuery(
                 "SELECT shard_name, id, hostname, port, source_id, source_hostname, source_port FROM local_replication_topology"
         ).forEach(row -> {
-            DBI shardDBI = new DBI(String.format("jdbc:postgresql://%s:%s/%s",
-                    row.get("hostname"), row.get("port"), row.get("shard_name")));
+            String appName = String.format("repl_task_%s_%s", row.get("hostname"), row.get("port"));
+            DBI shardDBI = new DBI(String.format("jdbc:postgresql://%s:%s/%s?" +
+                            "user=kv_replicationd&ApplicationName=%s",
+                    row.get("hostname"), row.get("port"), row.get("shard_name"), appName));
 
             ReplicationTask task = new ReplicationTask(
                     shardDBI,

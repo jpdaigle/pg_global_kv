@@ -22,7 +22,7 @@ CREATE TABLE kv_config.my_info (
   hostname      text   NOT NULL
 );
 CREATE UNIQUE INDEX my_info_single_row ON kv_config.my_info ((true));
-
+GRANT SELECT ON kv_config.my_info TO PUBLIC;
 
 CREATE FUNCTION kv_config.ensure_foreign_server(hostname text, port int, dbname text) RETURNS text AS $$
 DECLARE
@@ -40,9 +40,11 @@ $$ LANGUAGE plpgsql;
 
 CREATE FUNCTION kv_config.ensure_user_mapping(server_name text) RETURNS VOID AS $$
 BEGIN
-  -- TODO, this is not correct from a security perspective.  FIXME
-  IF NOT EXISTS(SELECT 1 FROM pg_catalog.pg_user_mappings WHERE srvname = server_name) THEN
-    EXECUTE format('CREATE USER MAPPING FOR PUBLIC SERVER %I', server_name);
+  IF NOT EXISTS(SELECT 1 FROM pg_catalog.pg_user_mappings m
+                         JOIN pg_roles r ON (r.oid = m.umuser)
+			 WHERE m.srvname = server_name AND r.rolname = current_user) THEN
+    -- TODO: this only works because kv_replicationd is SUPERUSER
+    EXECUTE format('CREATE USER MAPPING FOR CURRENT_USER SERVER %I', server_name);
   END IF;
 END;
 $$ LANGUAGE plpgsql;

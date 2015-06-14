@@ -1,4 +1,9 @@
 -----------------------------------------
+-- ACL
+-----------------------------------------
+GRANT USAGE ON SCHEMA kv, kv_config TO kv_client;
+
+-----------------------------------------
 -- Types
 -----------------------------------------
 
@@ -44,6 +49,10 @@ CREATE INDEX ON kv.t_kv(ts);
 -- Makes cleaning soft deletes performant
 CREATE INDEX ON kv.t_kv(ts) WHERE value IS NULL;
 
+-- ACL
+GRANT SELECT, INSERT, UPDATE ON kv.t_kv TO kv_client;
+GRANT SELECT, INSERT, UPDATE, DELETE ON kv.t_kv TO kv_replicationd;
+
 -- View in public namespace for debugging
 CREATE VIEW public.vw_kv AS (SELECT * FROM kv.t_kv);
 
@@ -56,6 +65,8 @@ CREATE TABLE kv.peer_status_to (
   peer        int                       PRIMARY KEY,
   min_horizon timestamp with time zone  NOT NULL
 );
+
+GRANT SELECT, INSERT, UPDATE ON kv.peer_status_from, kv.peer_status_to TO kv_replicationd; 
 
 -- This is really the information the admin cares about.  Its broken out into
 -- two tables above to make concurrency work better.
@@ -169,6 +180,9 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+
+
+GRANT ALL ON FOREIGN DATA WRAPPER postgres_fdw TO kv_replicationd;
 CREATE FUNCTION kv.replicate(remote_table regclass, peer_id int) RETURNS VOID AS $$
 DECLARE
   dbname text := $exec$ || quote_literal(peer_name) || $exec$ ;

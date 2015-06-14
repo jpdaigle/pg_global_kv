@@ -1,6 +1,8 @@
 #! /bin/bash
 set -e
 
+cd $(dirname $0)
+
 source config.sh
 
 ./util/create_node.sh $PRIMARY_CATALOG_HOST $PRIMARY_CATALOG_PORT $PRIMARY_CATALOG_DATABASE sql/empty_catalog.sql

@@ -1,5 +1,6 @@
 #! /bin/bash
 set -e
+cd $(dirname $0)
 source config.sh
 
 $PSQL_CATALOG -c 'COPY (SELECT hostname, port FROM catalog_instance

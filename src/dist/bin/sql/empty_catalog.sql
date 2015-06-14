@@ -1,3 +1,43 @@
+-- Create Users
+CREATE OR REPLACE FUNCTION kv_config.create_role_if_not_exists(role text, login boolean) RETURNS VOID AS $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = role) THEN
+    EXECUTE format('CREATE ROLE %I', role);
+  END IF;
+
+  -- set login to the desired value regardless
+  IF login THEN
+    EXECUTE format('ALTER ROLE %I WITH LOGIN', role);
+  ELSE
+    EXECUTE format('ALTER ROLE %I WITH NOLOGIN', role);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
+COMMENT ON FUNCTION kv_config.create_role_if_not_exists(role text, login boolean) IS
+'There is no create role if not exists for some reason.  This implements it.  This is not a security problem
+because postgres will still check permissions when the create command is issued.  And what roles exist is
+is public in the postgres catalog.';
+
+DO $$ BEGIN
+  PERFORM kv_config.create_role_if_not_exists('kv_client', true);
+  ALTER ROLE kv_client SET statement_timeout TO '1s';
+  PERFORM kv_config.create_role_if_not_exists('kv_replicationd', true);
+  GRANT USAGE ON SCHEMA kv_stats, kv_config TO kv_replicationd;
+  GRANT ALL ON SCHEMA kv_remotes TO kv_replicationd;
+  GRANT ALL ON FOREIGN DATA WRAPPER postgres_fdw TO kv_replicationd;
+
+  -- TODO: GAHHHH
+  -- postgres_fdw requires a /password/ to be set in order to query a remote table
+  -- It also means the other end must prompt for a password which requires changing
+  -- pg_hba, and we weren't managing that here right now.
+  -- Sadly, granting SUPERUSER to kv_replicationd for now.  Next iteration should revoke this
+  -- and set proper permissions.
+  ALTER ROLE kv_replicationd WITH SUPERUSER;
+
+END $$;
+
+
+-- Config tables
 CREATE TABLE shard_name (
   name text PRIMARY KEY
 );
@@ -19,6 +59,8 @@ CREATE TABLE statistics_to_collect (
   remote_table_name  text      NOT NULL,
   target_table       regclass  NOT NULL
 );
+
+GRANT SELECT ON shard_name, catalog_instance, shard_instance, statistics_to_collect TO PUBLIC;
 
 CREATE TABLE last_config_push (
   ts timestamp with time zone NOT NULL
@@ -74,6 +116,7 @@ $$ LANGUAGE plpgsql;
 CREATE FUNCTION kv_config.stats_table_for_pg_catalog(catalog_table_name text) RETURNS VOID AS $$
 BEGIN
   EXECUTE format('CREATE TABLE kv_stats.%I(server_name text NOT NULL, ts timestamp with time zone NOT NULL, LIKE pg_catalog.%1$I)', catalog_table_name);
+  EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON kv_stats.%I TO kv_replicationd', catalog_table_name);
   INSERT INTO statistics_to_collect VALUES ('pg_catalog', catalog_table_name, format('kv_stats.%I', catalog_table_name));
 END;
 $$ LANGUAGE plpgsql;
@@ -90,6 +133,7 @@ DO $$ BEGIN
     peer int,
     min_horizon timestamp with time zone  NOT NULL
   );
+  GRANT SELECT, INSERT, UPDATE, DELETE ON kv_stats.peer_status_raw TO kv_replicationd;
   INSERT INTO statistics_to_collect VALUES ('kv', 'peer_status_from', 'kv_stats.peer_status_raw');
   CREATE VIEW kv_stats.peer_status AS
     SELECT server_name, ts, hostname, port, min_horizon
@@ -115,6 +159,8 @@ CREATE VIEW local_replication_topology AS
   FROM replication_topology
   JOIN pg_settings ON (pg_settings.name = 'port' AND replication_topology.port = setting::int)
   JOIN kv_config.my_info USING (hostname);
+
+GRANT SELECT ON replication_topology, local_replication_topology TO kv_replicationd;
 
 CREATE OR REPLACE FUNCTION kv_stats.update_statistics() RETURNS VOID AS $$
 DECLARE
@@ -143,3 +189,6 @@ BEGIN
   END LOOP;
 END;
 $$ LANGUAGE plpgsql;
+
+
+
