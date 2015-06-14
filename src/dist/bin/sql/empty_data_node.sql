@@ -3,9 +3,10 @@
 -----------------------------------------
 
 -- Allows for distinct key namespaces in the same server
-CREATE TYPE kv.namespace         AS ENUM ('DEFAULT');
+CREATE TYPE kv.namespace         AS ENUM ('DEFAULT', 'INSIGHT');  -- TODO: namespaces belong in config, but we need to roll this out,
+                                                                  --       hard code for now.
 
--- TODO are these values correct
+-- TODO should be config
 CREATE TYPE kv.expiration_policy AS ENUM ('NO_EXPIRE', 'EXPIRY_1', 'EXPIRY_2', 'EXPIRY_3', 'EXPIRY_4', 'EXPIRY_5', 'EXPIRY_6', 'EXPIRY_7');
 
 -- Limits the reasonable values for keys
