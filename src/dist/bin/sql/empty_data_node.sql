@@ -10,7 +10,7 @@ CREATE TYPE kv.expiration_policy AS ENUM ('NO_EXPIRE', 'EXPIRY_1', 'EXPIRY_2', '
 
 -- Limits the reasonable values for keys
 CREATE DOMAIN kv.key AS text
-       COLLATE "C"
+       COLLATE "C" --FORCE C collate strings for performance
        NOT NULL
        CHECK ( char_length(VALUE) < 63 );  -- TODO, what should we enforce here?  Using NAMEDATALEN-1 for now
                                            -- but it may be worth enforcing some structure on keys.  (Part of config?)
@@ -69,20 +69,20 @@ CREATE VIEW vw_peer_status AS (
 CREATE FUNCTION kv.get(in ns text, in k text, out v json) AS
 $$
 BEGIN
-  SELECT value INTO v FROM kv.t_kv WHERE namespace = ns AND key=k;
+  SELECT value INTO v FROM kv.t_kv WHERE namespace = ns::kv.namespace AND key=k::kv.key;
 END
 $$
 LANGUAGE plpgsql;
 
 -- TODO: retype as text?
 CREATE OR REPLACE FUNCTION kv.put(
-  ns         kv.namespace,
-  k          kv.key,
-  v          json,
-  expiration kv.expiration_policy
+  ns         text,
+  k          text,
+  v          text,
+  expiration text
 ) RETURNS put_result AS $$
 BEGIN
-  RETURN kv._put(ns, k, v, expiration, now(), (SELECT instance_id FROM kv_config.my_info));
+  RETURN kv._put(ns::kv.namespace, k::kv.key, v::json, expiration::kv.expiration_policy, now(), (SELECT instance_id FROM kv_config.my_info));
 END;
 $$
 LANGUAGE plpgsql;
