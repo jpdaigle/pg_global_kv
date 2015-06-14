@@ -69,7 +69,7 @@ CREATE VIEW vw_peer_status AS (
 CREATE FUNCTION kv.get(in ns text, in k text, out v json) AS
 $$
 BEGIN
-  SELECT payload INTO v FROM kv.t_kv WHERE namespace = ns AND key=k;
+  SELECT value INTO v FROM kv.t_kv WHERE namespace = ns AND key=k;
 END
 $$
 LANGUAGE plpgsql;
@@ -164,11 +164,7 @@ DECLARE
 BEGIN
   server_name = kv_config.ensure_foreign_server(hostname, port, dbname);
   PERFORM kv_config.ensure_user_mapping(server_name);
-  RETURN kv_config.ensure_foreign_table(
-    server_name,
-    'kv',
-    't_kv'
-  );
+  RETURN kv_config.ensure_foreign_table(server_name, 'kv', 't_kv');
 END;
 $$ LANGUAGE plpgsql;
 
