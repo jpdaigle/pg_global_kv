@@ -86,3 +86,4 @@ _Listed in no particular order_
 * Replicationd should clean up nulls/deletes.
 * Rethink schema naming conventions in PL/pgSQL.  Choices don't feel very consistent.
 * Dynamic throttling of replication, (see the sleep in `ReplicationTask.java`)
+* Log4j doesn't have an actual config.  Better logging is generally needed.
