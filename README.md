@@ -32,7 +32,11 @@ The following should be installed (and running) before trying to use pg_global_k
 * postgres 9.3
 
 ### Instructions
-On every machine in the parade, run `./install.sh` which will build and install into `/opt/pg_global_kv` and also install the appropriate`/etc/init.d/` script.  Be sure to set up the proper pg_hba.conf to allow internode connectivity.  TODO: explain proper connectivity.
+On every machine in the parade, run `./install.sh` which will build and install into `/opt/pg_global_kv` and also install the appropriate`/etc/init.d/` script.  Be sure to set up the proper pg_hba.conf to allow internode connectivity.  Particularly:
+
+* Initial setup needs the ADMIN_USER (default postgres) to be able to connect from the host you are running setup commands.
+* User kv_replicationd must be able to connect to everything.
+* User kv_client is used to connect to parade.  Allow access to all shards from the desried locations.
 
 All the scripts you will need will be in `/opt/pg_global_kv/bin/`.  In that directory you will find `config.sh` make sure those values are what you intend before proceeding.
 
