@@ -30,14 +30,20 @@ The following should be installed (and running) before trying to use pg_global_k
 * centos 6
 * java 1.8
 * postgres 9.3
-* gradle
 
 ### Instructions
 On every machine in the parade, run `./install.sh` which will build and install into `/opt/pg_global_kv` and also install the appropriate`/etc/init.d/` script.  Be sure to set up the proper pg_hba.conf to allow internode connectivity.  TODO: explain proper connectivity.
 
 All the scripts you will need will be in `/opt/pg_global_kv/bin/`.  In that directory you will find `config.sh` make sure those values are what you intend before proceeding.
 
-After running the install script select one machine and run `./create_first_catalog.sh`.  It will give you a psql command to connect to that first catalog database.   In that database set up the proper configuration into the tables.
+After running the install script select one machine and run `./create_first_catalog.sh`.  It will give you a psql command to connect to that first catalog database.   In that database set up the proper configuration into the tables.  Example setup:
+
+    INSERT INTO catalog_instance VALUES ('tmtest01n.ndmad2'), ('tmtest02n.ndmad2');
+    INSERT INTO shard_name SELECT 'kv' || generate_series(1,12);
+    INSERT INTO shard_instance (hostname, port, shard_name)
+        SELECT hostname, port, name FROM catalog_instance CROSS JOIN shard_name;
+    UPDATE kv_config.my_info SET hostname = 'tmtest01n.ndmad2';
+    
 
 Then run `./setup_parade.sh`.  This will log into all the servers configured and setup all of the appropriate databases, and push the config to the entire parade.
 
@@ -65,6 +71,7 @@ For now high availability within each zone is assumed to be accomplished via Pos
 
 -------------------------------------------------------
 ## Development
+TODO
 
 ## Project TODO List
 _Listed in no particular order_
