@@ -16,7 +16,7 @@ CREATE TYPE kv.expiration_policy AS ENUM ('NO_EXPIRE', 'EXPIRY_1', 'EXPIRY_2', '
 
 -- Limits the reasonable values for keys
 CREATE DOMAIN kv.key AS text
-       COLLATE "C" --FORCE C collate strings for performance
+       COLLATE "C" --Force C collate strings for performance
        NOT NULL
        CHECK ( char_length(VALUE) < 63 );  -- TODO, what should we enforce here?  Using NAMEDATALEN-1 for now
                                            -- but it may be worth enforcing some structure on keys.  (Part of config?)
@@ -56,24 +56,20 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON kv.t_kv TO kv_replicationd;
 -- View in public namespace for debugging
 CREATE VIEW public.vw_kv AS (SELECT * FROM kv.t_kv);
 
+
+-- Reviewers: can I get a better name for these two tables that follow?
 CREATE TABLE kv.peer_status_from (
   peer        int                       PRIMARY KEY,
   min_horizon timestamp with time zone  NOT NULL
 );
 
+-- TODO write to this table
 CREATE TABLE kv.peer_status_to (
   peer        int                       PRIMARY KEY,
   min_horizon timestamp with time zone  NOT NULL
 );
 
-GRANT SELECT, INSERT, UPDATE ON kv.peer_status_from, kv.peer_status_to TO kv_replicationd; 
-
--- This is really the information the admin cares about.  Its broken out into
--- two tables above to make concurrency work better.
-CREATE VIEW vw_peer_status AS (
-  SELECT peer, kv.peer_status_from.min_horizon as from_horizon, kv.peer_status_to.min_horizon AS to_horizon
-  FROM kv.peer_status_from JOIN kv.peer_status_to USING (peer)  --TODO join kv.local_shard_instances
-);
+GRANT SELECT, INSERT, UPDATE ON kv.peer_status_from, kv.peer_status_to TO kv_replicationd;
 
 -----------------------------------------
 -- API functions
@@ -86,26 +82,27 @@ END
 $$
 LANGUAGE plpgsql;
 
--- TODO: retype as text?
 CREATE OR REPLACE FUNCTION kv.put(
   ns         text,
   k          text,
   v          text,
   expiration text
-) RETURNS put_result AS $$
+) RETURNS text AS $$
 BEGIN
   RETURN kv._put(ns::kv.namespace, k::kv.key, v::json, expiration::kv.expiration_policy, now(), (SELECT instance_id FROM kv_config.my_info));
 END;
 $$
 LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION kv.delete(ns kv.namespace, k kv.key) RETURNS put_result AS $$
+CREATE OR REPLACE FUNCTION kv.delete(ns text, k text) RETURNS text AS $$
 BEGIN
-  RETURN kv._put(ns, k, null, 'NO_EXPIRE', now(), (SELECT instance_id FROM kv_config.my_info));
+  RETURN kv._put(ns::kv.namespace, k::kv.key, null, 'NO_EXPIRE', now(), (SELECT instance_id FROM kv_config.my_info));
 END;
 $$
 LANGUAGE plpgsql;
-
+COMMENT ON FUNCTION kv.delete(text, text) IS
+'Delete is just a put of null.  This soft delete allows replication to carry the delete through out the parade.
+kv.clean_up_nulls() will clean these up.';
 
 
 -----------------------------------------
@@ -131,6 +128,13 @@ BEGIN
     IF found THEN
       RETURN 'UPDATE';
     END IF;
+
+    -- TODO consistent tie breakers.
+    -- Right now we have a short coming.  If the same key is written in two data centers at the exact same microsecond,
+    -- then it is undefined what row will be taken on either side.  This could cause node divergence.  The proper way to
+    -- fix it is to break that tie with peer_num.  It doesn't matter which we choose, we just need to choose the same thing
+    -- on every server.  Considering the current use case it isn't that big of a deal, and I don't want to mess with how fiddly
+    -- that would be right now.
     
     -- not there, so try to insert the key
     -- if someone else inserts the same key concurrently,
@@ -156,7 +160,7 @@ END;
 $$
 LANGUAGE plpgsql;
 
-
+-- TODO this function won't work until we start populating peer_status_to
 CREATE FUNCTION kv.clean_up_nulls() RETURNS VOID AS $$
 DECLARE
   horizon timestamp with time zone;

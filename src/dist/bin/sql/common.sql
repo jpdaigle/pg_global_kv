@@ -1,7 +1,14 @@
 CREATE SCHEMA kv;
+COMMENT On SCHEMA kv IS 'This is where all the data lives in a data node';
+
 CREATE SCHEMA kv_config;
+COMMENT ON SCHEMA kv_config IS 'Config values and a bunch of functions around foreign tables live here';
+
 CREATE SCHEMA kv_remotes;
+COMMENT ON SCHEMA kv_remotes IS 'All the foreign tables end up in this schema';
+
 CREATE SCHEMA kv_stats;
+COMMENT ON SCHEMA kv_stats IS 'kv store specific stats go here';
 
 
 -----------------------------------------
@@ -21,6 +28,10 @@ CREATE TABLE kv_config.my_info (
   instance_id   int,
   hostname      text   NOT NULL
 );
+COMMENT ON TABLE kv_config.my_info IS
+$$This table allows the shard to know its own identity.  Its used in many places.
+Note: Port value isn't in this table because its inferred$$;
+COMMENT ON COLUMN kv_config.my_info.instance_id IS 'In a shard instance this is the peer column on t_kv.  In a catalog this is null';
 CREATE UNIQUE INDEX my_info_single_row ON kv_config.my_info ((true));
 GRANT SELECT ON kv_config.my_info TO PUBLIC;
 
@@ -37,6 +48,8 @@ BEGIN
   RETURN server_name;
 END;
 $$ LANGUAGE plpgsql;
+COMMENT ON FUNCTION kv_config.ensure_foreign_server(hostname text, port int, dbname text) IS
+'Basically CREATE IF NOT EXISTS of a server that we will need in the future';
 
 CREATE FUNCTION kv_config.ensure_user_mapping(server_name text) RETURNS VOID AS $$
 BEGIN
@@ -48,6 +61,8 @@ BEGIN
   END IF;
 END;
 $$ LANGUAGE plpgsql;
+COMMENT ON FUNCTION kv_config.ensure_user_mapping(server_name text) IS
+'Same as above but for user mappings';
 
 CREATE FUNCTION kv_config.ensure_foreign_table(
   server_name text,
@@ -57,6 +72,9 @@ CREATE FUNCTION kv_config.ensure_foreign_table(
   local_table_name text DEFAULT NULL
 ) RETURNS text AS $$
 BEGIN
+  -- The way that we progmatically generate this might get to too long for NAMEDATALEN
+  -- We'll allow you to override if need be.
+  -- Did not truncate name because we could get name collisions and these could cause silent bugs.
   IF local_table_name IS NULL THEN
     local_table_name = format('%s_%s_%s', server_name, remote_schema, remote_table_name);
   END IF;
@@ -78,6 +96,9 @@ BEGIN
   RETURN format('kv_remotes.%I', local_table_name);
 END;
 $$ LANGUAGE plpgsql;
+COMMENT ON FUNCTION kv_config.ensure_foreign_table(text, text, text, text, text) IS
+'This is the magic function.  You just tell it about the name of table that you want from a particular server and it just
+figures out the table definition and creates and tells you where is it is.';
 
 CREATE FUNCTION kv_config.column_definitions_for(
   schema_name text,
@@ -86,11 +107,15 @@ CREATE FUNCTION kv_config.column_definitions_for(
   out table_def text
 ) AS $$
 BEGIN
+  -- Note: information_schema doesn't know about enums and json so they get down cast to text.  kv.replicate will cast them
+  -- back to the right types.
   EXECUTE format($q$ SELECT string_agg(
     column_name || ' ' ||  CASE WHEN data_type = 'USER-DEFINED' THEN 'text' ELSE data_type END,
   ', ') FROM %s WHERE table_schema = %L AND table_name = %L $q$, column_table, schema_name, table_name) INTO table_def;
 END;
 $$ LANGUAGE plpgsql;
+COMMENT ON FUNCTION kv_config.column_definitions_for(text, text, regclass, out text) IS
+$$Takes an information schema table (perhaps local, perhaps a foreign table) and figures out the column definitions$$;
 
 CREATE FUNCTION kv_config.get_remote_table_def(
   server_name text,
@@ -105,3 +130,8 @@ BEGIN
   RETURN kv_config.column_definitions_for(schema_name, table_name, remote_inf_colums);
 END;
 $$ LANGUAGE plpgsql;
+COMMENT ON FUNCTION kv_config.get_remote_table_def(text, text, text) IS
+$$Get the definition of a remote table, using the information_schema from the remote side.  The only challenge is you need
+a foreign table referencing the information schema of the remote side.  We have a bootstrapping problem, so we'll concede
+and make a simple assumption: that the remote information_schema.columns looks enough like our information_schema.columns
+in order to create a foreign table of it.  So yes we recurse into ensure_foreign_table, but this time with a table definition$$;

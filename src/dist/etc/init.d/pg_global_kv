@@ -8,6 +8,8 @@
 # Description:       <DESCRIPTION>
 ### END INIT INFO
 
+# TODO: honestly these isn't a good initd script but it works for now.
+
 NAME=pg_global_kv
 SCRIPT=/opt/pg_global_kv/bin/pg_global_kv
 RUNAS=postgres
@@ -23,7 +25,8 @@ start() {
     return 1
   fi
   echo 'Starting service...' >&2
-  #TODO: this feels wrong
+  #TODO: this feels very wrong.  Code reviewers.  What is the right way to do this?
+  # I was getting a permissions error on the logfile creation.
   touch $LOGFILE
   chown $RUNAS $LOGFILE
   local CMD="$SCRIPT &> \"$LOGFILE\" & echo \$!"

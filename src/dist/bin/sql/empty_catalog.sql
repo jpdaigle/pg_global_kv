@@ -41,11 +41,16 @@ END $$;
 CREATE TABLE shard_name (
   name text PRIMARY KEY
 );
+COMMENT ON TABLE shard_name IS 'This is lists all the shards in the parade';
 
 CREATE TABLE catalog_instance (
   hostname    text   NOT NULL,
-  port        int    NOT NULL DEFAULT 5432
+  port        int    NOT NULL DEFAULT 5432,
+  PRIMARY KEY (hostname, port)
 );
+COMMENT ON TABLE catalog_instance IS
+'There must be a catalog instance on every postgres instance in the parade.  Just listing them here is sufficient for initial
+install.  setup_parade.sh will use the info here to distribute to the cluster';
 
 CREATE TABLE shard_instance (
   instance_id SERIAL NOT NULL,
@@ -112,7 +117,12 @@ BEGIN
   END LOOP;
 END;
 $$ LANGUAGE plpgsql;
+COMMENT ON FUNCTION kv_config.push_catalog_changes() IS
+'This function pushes catalog changes to all of the catalogs in catalog_instance';
 
+--
+-- Setup stats collection
+--
 CREATE FUNCTION kv_config.stats_table_for_pg_catalog(catalog_table_name text) RETURNS VOID AS $$
 BEGIN
   EXECUTE format('CREATE TABLE kv_stats.%I(server_name text NOT NULL, ts timestamp with time zone NOT NULL, LIKE pg_catalog.%1$I)', catalog_table_name);
@@ -153,12 +163,16 @@ CREATE VIEW replication_topology AS
     source.port source_port
   FROM shard_instance inst JOIN shard_instance source USING (shard_name)
   WHERE inst.instance_id <> source.instance_id;
+COMMENT ON VIEW replication_topology IS
+'Computes where replication should run.  Encapsulated as a view to make it easy to change in the future';
 
 CREATE VIEW local_replication_topology AS
   SELECT replication_topology.*
   FROM replication_topology
   JOIN pg_settings ON (pg_settings.name = 'port' AND replication_topology.port = setting::int)
   JOIN kv_config.my_info USING (hostname);
+COMMENT ON VIEW local_replication_topology IS
+'This view is what replicationd uses to determine what replication tasks it should launch';
 
 GRANT SELECT ON replication_topology, local_replication_topology TO kv_replicationd;
 

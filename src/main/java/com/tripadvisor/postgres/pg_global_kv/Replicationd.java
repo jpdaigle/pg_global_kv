@@ -9,6 +9,12 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
+
+/**
+ * Main entry class.
+ *
+ * It figures out what we need to replicate from this local machine and schedules those tasks
+ */
 public class Replicationd
 {
     public static void main(String[] args) throws ClassNotFoundException
@@ -29,6 +35,7 @@ public class Replicationd
 
 
         ExecutorService executor = Executors.newCachedThreadPool();
+        // We hold on to the futures so when we implement reload conf, we can cancel them and schedule new ones
         List<Future<Object>> jobFutures = new ArrayList<>();
 
 

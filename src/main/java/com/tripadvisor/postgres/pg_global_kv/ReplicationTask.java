@@ -11,7 +11,12 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Created by mkelly on 5/13/15.
+ * Main workhorse of replication.
+ *
+ * It starts by ensuring a remote config.
+ *
+ * After that it just enters a tight loop and calling the replication function (which does all the work)
+ * Importantly it retries if it gets an error.
  */
 public class ReplicationTask implements Callable<Object>
 {
@@ -55,13 +60,18 @@ public class ReplicationTask implements Callable<Object>
                     while (true)
                     {
                         update.execute();
+                        // TODO dynamic throttling
                         Uninterruptibles.sleepUninterruptibly(100, TimeUnit.MILLISECONDS);
                     }
 
                 }
                 catch (Exception e)
                 {
+                    // We'll log number of shards times number of peers of these errors every 5 seconds
+                    // if the server is down.  This shouldn't be too much to spam in the logs, but maybe
+                    // we should think about using a log4j burst filter.
                     LOGGER.error("Replication error", e);
+                    // TODO configurable
                     Uninterruptibles.sleepUninterruptibly(5, TimeUnit.SECONDS);
                 }
             }
@@ -69,6 +79,9 @@ public class ReplicationTask implements Callable<Object>
         }
         catch (CallbackFailedException e)
         {
+            // ensureRemoteConfig won't fail because of a lack of connectivity to the remote end
+            // (it only sets everything up).  If we got here then something is very, very wrong.
+            // Lets just die and let a human debug.
             LOGGER.error("Unable to ensure valid connection config to remote server", e);
             System.exit(1);
         }

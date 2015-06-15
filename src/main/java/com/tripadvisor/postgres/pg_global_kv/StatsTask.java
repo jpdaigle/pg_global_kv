@@ -11,7 +11,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Created by mkelly on 5/14/15.
+ * This is just the heartbeat task that causes stats to be collected up to catalog database
  */
 public class StatsTask implements Callable<Object>
 {
@@ -38,6 +38,7 @@ public class StatsTask implements Callable<Object>
                 while (true)
                 {
                     update.execute();
+                    // TODO config
                     Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
                 }
 
@@ -45,6 +46,7 @@ public class StatsTask implements Callable<Object>
             catch (Exception e)
             {
                 LOGGER.error("Stats collection error", e);
+                // TODO config
                 Uninterruptibles.sleepUninterruptibly(5, TimeUnit.SECONDS);
             }
         }

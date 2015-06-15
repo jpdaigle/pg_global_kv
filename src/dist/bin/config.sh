@@ -13,4 +13,5 @@ export PSQL_CATALOG="psql -h $PRIMARY_CATALOG_HOST -U $ADMIN_USER -p $PRIMARY_CA
 # Does some extra steps to make it easier to develop.
 export DEV_MODE=true
 
+# The initd script will use this value to decide where to get java from
 export JAVA_HOME=
