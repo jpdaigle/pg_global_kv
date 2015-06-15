@@ -14,7 +14,7 @@ NAME=$(cat settings.gradle | awk '/rootProject.name/ {print $3}' | tr -d "'")
 ./gradlew install
 rm build/install/${NAME}/bin/${NAME}.bat
 sed -i '/DEV_MODE/ s/true/false/' build/install/${NAME}/bin/config.sh
-sed -i "/JAVA_HOME=/ s/.*/JAVA_HOME=${JAVA_HOME}"
+sed -i "/JAVA_HOME=/ s/.*/JAVA_HOME=${JAVA_HOME}/"
 sudo rsync -a build/install/${NAME} /opt/
 
 if [ -d /etc/init.d ]; then
