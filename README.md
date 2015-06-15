@@ -55,7 +55,7 @@ All that remains is to run `service pg_global_kv start` on each of hosts.  Repli
 
 -------------------------------------------------------
 
-##Design
+## Design
 
 ### Basic Design
 Each host has a postgres instance and an instance of replicationd.
