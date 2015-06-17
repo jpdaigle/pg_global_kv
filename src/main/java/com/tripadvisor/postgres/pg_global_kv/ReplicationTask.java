@@ -99,12 +99,12 @@ public class ReplicationTask implements Callable<Object>
     }
 
 
-
     @Override
     public String toString()
     {
         return "ReplicationTask{" +
                 "m_shardDBI=" + m_shardDBI +
+                ", m_shardName='" + m_shardName + '\'' +
                 ", m_sourceId=" + m_sourceId +
                 ", m_sourceHost='" + m_sourceHost + '\'' +
                 ", m_sourcePort=" + m_sourcePort +

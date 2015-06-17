@@ -42,6 +42,8 @@ All the scripts you will need will be in `/opt/pg_global_kv/bin/`.  In that dire
 
 After running the install script select one machine and run `./create_first_catalog.sh`.  It will give you a psql command to connect to that first catalog database.   In that database set up the proper configuration into the tables.  Example setup:
 
+    -- Note if in dev mode there will be dummy data already in these tables.
+    
     INSERT INTO catalog_instance VALUES ('tmtest01n.ndmad2'), ('tmtest02n.ndmad2');
     INSERT INTO shard_name SELECT 'kv' || generate_series(1,12);
     INSERT INTO shard_instance (hostname, port, shard_name)
