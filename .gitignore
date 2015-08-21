@@ -1,0 +1,13 @@
+build/
+.gradle/
+
+
+# Vim
+*.swp
+*.swo
+
+# Intellij files
+.idea/
+*.iml
+*.ipr
+*.iws

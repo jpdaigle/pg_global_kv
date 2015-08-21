@@ -1,0 +1,25 @@
+apply plugin: 'java'
+apply plugin: 'application'
+apply plugin: 'idea'
+
+sourceCompatibility = 1.8
+version = '1.0'
+
+
+mainClassName = "com.tripadvisor.postgres.pg_global_kv.Replicationd"
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    testCompile group: 'junit', name: 'junit', version: '4.11'
+    compile 'org.postgresql:postgresql:9.3-1103-jdbc41'
+    compile 'org.jdbi:jdbi:2.62'
+
+    compile group: 'org.apache.logging.log4j', name: 'log4j-api', version: '2.2'
+    compile group: 'org.apache.logging.log4j', name: 'log4j-core', version: '2.2'
+
+    compile 'com.google.guava:guava:18.0'
+
+}
