@@ -7,13 +7,6 @@ GRANT USAGE ON SCHEMA kv, kv_config TO kv_client;
 -- Types
 -----------------------------------------
 
--- Allows for distinct key namespaces in the same server
-CREATE TYPE kv.namespace         AS ENUM ('DEFAULT', 'INSIGHT');  -- TODO: namespaces belong in config, but we need to roll this out,
-                                                                  --       hard code for now.
-
--- TODO should be config
-CREATE TYPE kv.expiration_policy AS ENUM ('NO_EXPIRE', 'EXPIRY_1', 'EXPIRY_2', 'EXPIRY_3', 'EXPIRY_4', 'EXPIRY_5', 'EXPIRY_6', 'EXPIRY_7');
-
 -- Limits the reasonable values for keys
 CREATE DOMAIN kv.key AS text
        COLLATE "C" --Force C collate strings for performance
@@ -173,6 +166,53 @@ BEGIN
 END;
 $$
 LANGUAGE plpgsql;
+
+CREATE FUNCTION kv.queue_deletes() RETURNS INT AS $$
+DECLARE
+  rec RECORD;
+  where_clause text = 'where';	
+  should_or boolean = false; 
+BEGIN
+  FOR rec IN (SELECT namespace, policy, time_length from expiry_to_interval) LOOP
+    IF should_or THEN
+      where_clause = where_clause || ' OR ';
+    ELSE
+      should_or = true;
+    END IF;
+    where_clause = where_clause || format(' (namespace = CAST(%L as kv.namespace) AND expiration = CAST(%L as kv.expiration_policy) and ts < %L) ', rec.namespace, rec.policy, now()-rec.time_length);
+
+  END LOOP;
+  EXECUTE format('CREATE TEMP TABLE keys_to_delete AS (SELECT key from kv.t_kv %s)', where_clause);
+  RETURN (SELECT COUNT(*) from keys_to_delete);    
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE FUNCTION kv.delete_keys(amt int) RETURNS int AS $$
+DECLARE
+  num_deleted INT;
+BEGIN
+
+  EXECUTE format('CREATE TEMP TABLE keys_to_delete_now AS (SELECT key from keys_to_delete LIMIT %s)', amt);
+--TODO: store keys to delete somehow, delete from both t_kv and keys_to_delete
+  WITH to_delete_now AS 
+  (SELECT key from keys_to_delete_now) 
+  DELETE FROM keys_to_delete k 
+  USING to_delete_now n 
+  WHERE k.key = n.key;
+
+  WITH to_delete_now AS 
+  (SELECT key from keys_to_delete_now) 
+  DELETE FROM kv.t_kv k 
+  USING to_delete_now n 
+  WHERE k.key = n.key;
+
+  num_deleted = (SELECT COUNT(*) from keys_to_delete_now);
+
+  DROP TABLE keys_to_delete_now;
+
+  RETURN num_deleted;
+END;
+$$ LANGUAGE plpgsql;
 
 CREATE FUNCTION kv_config.ensureRemoteShardConnection(hostname text, port int, dbname text) RETURNS text AS $$
 DECLARE

@@ -135,3 +135,9 @@ $$Get the definition of a remote table, using the information_schema from the re
 a foreign table referencing the information schema of the remote side.  We have a bootstrapping problem, so we'll concede
 and make a simple assumption: that the remote information_schema.columns looks enough like our information_schema.columns
 in order to create a foreign table of it.  So yes we recurse into ensure_foreign_table, but this time with a table definition$$;
+
+CREATE TYPE kv.expiration_policy AS ENUM ('NO_EXPIRE', 'EXPIRY_1', 'EXPIRY_2', 'EXPIRY_3', 'EXPIRY_4', 'EXPIRY_5', 'EXPIRY_6', 'EXPIRY_7');
+-- Allows for distinct key namespaces in the same server 
+CREATE TYPE kv.namespace         AS ENUM ('DEFAULT', 'INSIGHT');  -- TODO: namespaces belong in config, but we need to roll this out, 
+                                                                  --       hard code for now. 
+
