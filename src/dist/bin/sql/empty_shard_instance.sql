@@ -182,6 +182,10 @@ BEGIN
     where_clause = where_clause || format(' (namespace = CAST(%L as kv.namespace) AND expiration = CAST(%L as kv.expiration_policy) and ts < %L) ', rec.namespace, rec.policy, now()-rec.time_length);
 
   END LOOP;
+  -- If should_or was never set to true, then we have no expirys at all, so just return 0
+  IF NOT should_or THEN
+    RETURN 0;
+  END IF;
   EXECUTE format('CREATE TEMP TABLE keys_to_delete AS (SELECT key from kv.t_kv %s)', where_clause);
   RETURN (SELECT COUNT(*) from keys_to_delete);    
 END;
@@ -193,7 +197,6 @@ DECLARE
 BEGIN
 
   EXECUTE format('CREATE TEMP TABLE keys_to_delete_now AS (SELECT key from keys_to_delete LIMIT %s)', amt);
---TODO: store keys to delete somehow, delete from both t_kv and keys_to_delete
   WITH to_delete_now AS 
   (SELECT key from keys_to_delete_now) 
   DELETE FROM keys_to_delete k 
