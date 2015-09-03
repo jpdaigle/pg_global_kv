@@ -181,7 +181,7 @@ BEGIN
 
   EXECUTE format('CREATE TEMP TABLE keys_to_delete AS (SELECT k.namespace, k.key from kv.t_kv k %s)', where_clause);
   EXECUTE format('CREATE TEMP TABLE keys_to_delete_now (namespace kv.namespace, key kv.key) ON COMMIT DELETE ROWS');
-  to_delete = (SELECT COUNT(*) from keys_to_delete);    
+  to_delete = (SELECT COUNT(1) from keys_to_delete);    
 END;
 $$ LANGUAGE plpgsql;
 
@@ -197,6 +197,7 @@ BEGIN
   WHERE k.key = n.key
   AND k.namespace = n.namespace;
 
+  -- expiry_where_clause will check again if the document should be deleted
   EXECUTE format('WITH to_delete_now AS 
   (SELECT namespace, key from keys_to_delete_now) 
   DELETE FROM kv.t_kv k 
@@ -204,9 +205,8 @@ BEGIN
   %s 
   AND k.key = n.key
   AND k.namespace = n.namespace;', expiry_where_clause);
-  --AND expiry still good
 
-  deleted = (SELECT COUNT(*) from keys_to_delete_now);
+  deleted = (SELECT COUNT(1) from keys_to_delete_now);
   done = true;
 END;
 $$ LANGUAGE plpgsql;

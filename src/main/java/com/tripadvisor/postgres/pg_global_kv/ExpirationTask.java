@@ -15,12 +15,10 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Main workhorse of replication.
+ * Main workhorse of expiration.
  *
- * It starts by ensuring a remote config.
- *
- * After that it just enters a tight loop and calling the replication function (which does all the work)
- * Importantly it retries if it gets an error.
+ * It calls into each shard and runs a batched delete process.
+ * It then waits 5 minutes between each shard to allow for checkpointing
  */
 public class ExpirationTask implements Callable<Object>
 {
@@ -69,13 +67,14 @@ public class ExpirationTask implements Callable<Object>
                                 .bind("where_clause", whereClause)
                                 .first();
                         done = (Boolean) results.get("done");
+                        Uninterruptibles.sleepUninterruptibly(50, TimeUnit.MILLISECONDS);
                     }
+                    LOGGER.info("Finished Shard, Waiting");
                 }
                 catch (Exception e)
                 {
                     LOGGER.error(e);
                 }
-                LOGGER.info("Finished Shard, Waiting");
                 Uninterruptibles.sleepUninterruptibly(5, TimeUnit.MINUTES);
             }
         }
