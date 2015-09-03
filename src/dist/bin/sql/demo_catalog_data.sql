@@ -9,3 +9,12 @@ INSERT INTO shard_instance (hostname, port, shard_name)
   SELECT 'localhost', 5433, name FROM shard_name;
 INSERT INTO shard_instance (hostname, port, shard_name)
   SELECT 'localhost', 5435, name FROM shard_name;
+
+INSERT INTO expiry_to_interval (namespace, policy, time_length)
+  VALUES ('DEFAULT', 'EXPIRY_1', '2 days'), 
+         ('DEFAULT', 'EXPIRY_2', '10 days'), 
+         ('DEFAULT', 'EXPIRY_3', '1 month'), 
+         ('DEFAULT', 'EXPIRY_4', '3 months'),
+         ('DEFAULT', 'EXPIRY_5', '7 months'), 
+         ('DEFAULT', 'EXPIRY_6', '13 months'), 
+         ('DEFAULT', 'EXPIRY_7', '25 months');

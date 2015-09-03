@@ -65,7 +65,13 @@ CREATE TABLE statistics_to_collect (
   target_table       regclass  NOT NULL
 );
 
-GRANT SELECT ON shard_name, catalog_instance, shard_instance, statistics_to_collect TO PUBLIC;
+CREATE TABLE expiry_to_interval (
+  namespace   kv.namespace         NOT NULL,
+  policy      kv.expiration_policy NOT NULL,
+  time_length interval             NOT NULL
+);     
+
+GRANT SELECT ON shard_name, catalog_instance, shard_instance, statistics_to_collect, expiry_to_interval TO PUBLIC;
 
 CREATE TABLE last_config_push (
   ts timestamp with time zone NOT NULL
@@ -112,6 +118,7 @@ BEGIN
     PERFORM kv_config.push_to_remote_table(server_name, 'public', 'catalog_instance');
     PERFORM kv_config.push_to_remote_table(server_name, 'public', 'shard_instance');
     PERFORM kv_config.push_to_remote_table(server_name, 'public', 'statistics_to_collect');
+    PERFORM kv_config.push_to_remote_table(server_name, 'public', 'expiry_to_interval');
     conf_push_table =  kv_config.ensure_foreign_table(server_name, 'public', 'last_config_push');
     EXECUTE format('UPDATE %s SET ts = now()', conf_push_table);
   END LOOP;

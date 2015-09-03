@@ -5,6 +5,7 @@ import org.skife.jdbi.v2.Handle;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -38,6 +39,8 @@ public class Replicationd
         // We hold on to the futures so when we implement reload conf, we can cancel them and schedule new ones
         List<Future<Object>> jobFutures = new ArrayList<>();
 
+        List<Map<String, Object>> expirationPolicy = h.createQuery(
+                "SELECT namespace, policy, time_length FROM expiry_to_interval").list();
 
         h.createQuery(
                 "SELECT shard_name, id, hostname, port, source_id, source_hostname, source_port FROM local_replication_topology"
@@ -55,11 +58,24 @@ public class Replicationd
                     (Integer) row.get("source_port")
             );
             jobFutures.add(executor.submit(task));
+            
         });
+        List<DBI> shardDBIs = new ArrayList<>();
+        h.createQuery("SELECT DISTINCT shard_name FROM local_replication_topology")
+        .forEach(row -> {
+            shardDBIs.add(new DBI(String.format("jdbc:postgresql://localhost/%s?" +
+                    "user=kv_replicationd&ApplicationName=expiration_task",
+                    row.get("shard_name"))));
+        });
+        ExpirationTask expTask = new ExpirationTask(
+                shardDBIs,
+                expirationPolicy
+        );
+        jobFutures.add(executor.submit(expTask));
 
         // Create the statistics polling thread
         jobFutures.add(executor.submit(new StatsTask(dbi)));
-
+        
         executor.shutdown();
 
         //TODO reload config on NOTIFY config_push

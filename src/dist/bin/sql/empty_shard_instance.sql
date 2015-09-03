@@ -7,13 +7,6 @@ GRANT USAGE ON SCHEMA kv, kv_config TO kv_client;
 -- Types
 -----------------------------------------
 
--- Allows for distinct key namespaces in the same server
-CREATE TYPE kv.namespace         AS ENUM ('DEFAULT', 'INSIGHT');  -- TODO: namespaces belong in config, but we need to roll this out,
-                                                                  --       hard code for now.
-
--- TODO should be config
-CREATE TYPE kv.expiration_policy AS ENUM ('NO_EXPIRE', 'EXPIRY_1', 'EXPIRY_2', 'EXPIRY_3', 'EXPIRY_4', 'EXPIRY_5', 'EXPIRY_6', 'EXPIRY_7');
-
 -- Limits the reasonable values for keys
 CREATE DOMAIN kv.key AS text
        COLLATE "C" --Force C collate strings for performance
@@ -173,6 +166,50 @@ BEGIN
 END;
 $$
 LANGUAGE plpgsql;
+
+CREATE FUNCTION kv.queue_deletes(out to_delete int, out where_clause text) AS $$
+DECLARE
+  rec RECORD;
+  predicates text[];	
+BEGIN
+  FOR rec IN (SELECT namespace, policy, time_length from expiry_to_interval) LOOP
+    predicates = predicates || format(' (k.namespace = %L::kv.namespace AND k.expiration = %L::kv.expiration_policy and k.ts < %L) ', rec.namespace, rec.policy, now()-rec.time_length);
+
+  END LOOP;
+  
+  where_clause = 'WHERE ' || array_to_string(predicates, ' OR ');
+
+  EXECUTE format('CREATE TEMP TABLE keys_to_delete AS (SELECT k.namespace, k.key from kv.t_kv k %s)', where_clause);
+  EXECUTE format('CREATE TEMP TABLE keys_to_delete_now (namespace kv.namespace, key kv.key) ON COMMIT DELETE ROWS');
+  to_delete = (SELECT COUNT(1) from keys_to_delete);    
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE FUNCTION kv.delete_keys(in amt int, in expiry_where_clause text, out deleted int, out done boolean) AS $$
+BEGIN
+
+  EXECUTE format('INSERT INTO keys_to_delete_now SELECT namespace, key from keys_to_delete LIMIT %s', amt);
+
+  WITH to_delete_now AS 
+  (SELECT namespace, key from keys_to_delete_now) 
+  DELETE FROM keys_to_delete k 
+  USING to_delete_now n 
+  WHERE k.key = n.key
+  AND k.namespace = n.namespace;
+
+  -- expiry_where_clause will check again if the document should be deleted
+  EXECUTE format('WITH to_delete_now AS 
+  (SELECT namespace, key from keys_to_delete_now) 
+  DELETE FROM kv.t_kv k 
+  USING to_delete_now n 
+  %s 
+  AND k.key = n.key
+  AND k.namespace = n.namespace;', expiry_where_clause);
+
+  deleted = (SELECT COUNT(1) from keys_to_delete_now);
+  done = true;
+END;
+$$ LANGUAGE plpgsql;
 
 CREATE FUNCTION kv_config.ensureRemoteShardConnection(hostname text, port int, dbname text) RETURNS text AS $$
 DECLARE
