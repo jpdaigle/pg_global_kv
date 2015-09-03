@@ -167,53 +167,47 @@ END;
 $$
 LANGUAGE plpgsql;
 
-CREATE FUNCTION kv.queue_deletes() RETURNS INT AS $$
+CREATE FUNCTION kv.queue_deletes(out to_delete int, out where_clause text) AS $$
 DECLARE
   rec RECORD;
-  where_clause text = 'where';	
-  should_or boolean = false; 
+  predicates text[];	
 BEGIN
   FOR rec IN (SELECT namespace, policy, time_length from expiry_to_interval) LOOP
-    IF should_or THEN
-      where_clause = where_clause || ' OR ';
-    ELSE
-      should_or = true;
-    END IF;
-    where_clause = where_clause || format(' (namespace = CAST(%L as kv.namespace) AND expiration = CAST(%L as kv.expiration_policy) and ts < %L) ', rec.namespace, rec.policy, now()-rec.time_length);
+    predicates = predicates || format(' (k.namespace = %L::kv.namespace AND k.expiration = %L::kv.expiration_policy and k.ts < %L) ', rec.namespace, rec.policy, now()-rec.time_length);
 
   END LOOP;
-  -- If should_or was never set to true, then we have no expirys at all, so just return 0
-  IF NOT should_or THEN
-    RETURN 0;
-  END IF;
-  EXECUTE format('CREATE TEMP TABLE keys_to_delete AS (SELECT key from kv.t_kv %s)', where_clause);
-  RETURN (SELECT COUNT(*) from keys_to_delete);    
+  
+  where_clause = 'WHERE ' || array_to_string(predicates, ' OR ');
+
+  EXECUTE format('CREATE TEMP TABLE keys_to_delete AS (SELECT k.namespace, k.key from kv.t_kv k %s)', where_clause);
+  EXECUTE format('CREATE TEMP TABLE keys_to_delete_now (namespace kv.namespace, key kv.key) ON COMMIT DELETE ROWS');
+  to_delete = (SELECT COUNT(*) from keys_to_delete);    
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE FUNCTION kv.delete_keys(amt int) RETURNS int AS $$
-DECLARE
-  num_deleted INT;
+CREATE FUNCTION kv.delete_keys(in amt int, in expiry_where_clause text, out deleted int, out done boolean) AS $$
 BEGIN
 
-  EXECUTE format('CREATE TEMP TABLE keys_to_delete_now AS (SELECT key from keys_to_delete LIMIT %s)', amt);
+  EXECUTE format('INSERT INTO keys_to_delete_now SELECT namespace, key from keys_to_delete LIMIT %s', amt);
+
   WITH to_delete_now AS 
-  (SELECT key from keys_to_delete_now) 
+  (SELECT namespace, key from keys_to_delete_now) 
   DELETE FROM keys_to_delete k 
   USING to_delete_now n 
-  WHERE k.key = n.key;
+  WHERE k.key = n.key
+  AND k.namespace = n.namespace;
 
-  WITH to_delete_now AS 
-  (SELECT key from keys_to_delete_now) 
+  EXECUTE format('WITH to_delete_now AS 
+  (SELECT namespace, key from keys_to_delete_now) 
   DELETE FROM kv.t_kv k 
   USING to_delete_now n 
-  WHERE k.key = n.key;
+  %s 
+  AND k.key = n.key
+  AND k.namespace = n.namespace;', expiry_where_clause);
+  --AND expiry still good
 
-  num_deleted = (SELECT COUNT(*) from keys_to_delete_now);
-
-  DROP TABLE keys_to_delete_now;
-
-  RETURN num_deleted;
+  deleted = (SELECT COUNT(*) from keys_to_delete_now);
+  done = true;
 END;
 $$ LANGUAGE plpgsql;
 
