@@ -60,18 +60,22 @@ public class Replicationd
             jobFutures.add(executor.submit(task));
             
         });
-        List<DBI> shardDBIs = new ArrayList<>();
-        h.createQuery("SELECT DISTINCT shard_name FROM local_replication_topology")
-        .forEach(row -> {
-            shardDBIs.add(new DBI(String.format("jdbc:postgresql://localhost/%s?" +
-                    "user=kv_replicationd&ApplicationName=expiration_task",
-                    row.get("shard_name"))));
-        });
-        ExpirationTask expTask = new ExpirationTask(
-                shardDBIs,
-                expirationPolicy
-        );
-        jobFutures.add(executor.submit(expTask));
+
+        if (!expirationPolicy.isEmpty())
+        {
+            List<DBI> shardDBIs = new ArrayList<>();
+            h.createQuery("SELECT DISTINCT shard_name FROM local_replication_topology")
+                    .forEach(row -> {
+                        shardDBIs.add(new DBI(String.format("jdbc:postgresql://localhost/%s?" +
+                                        "user=kv_replicationd&ApplicationName=expiration_task",
+                                         row.get("shard_name"))));
+                    });
+            ExpirationTask expTask = new ExpirationTask(
+                    shardDBIs,
+                    expirationPolicy
+            );
+            jobFutures.add(executor.submit(expTask));
+        }
 
         // Create the statistics polling thread
         jobFutures.add(executor.submit(new StatsTask(dbi)));
