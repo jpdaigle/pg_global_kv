@@ -64,7 +64,7 @@ public class Replicationd
         if (!expirationPolicy.isEmpty())
         {
             List<DBI> shardDBIs = new ArrayList<>();
-            h.createQuery("SELECT DISTINCT shard_name FROM local_replication_topology")
+            h.createQuery("SELECT DISTINCT shard_name FROM local_replication_topology ORDER BY shard_name")
                     .forEach(row -> {
                         shardDBIs.add(new DBI(String.format("jdbc:postgresql://localhost/%s?" +
                                         "user=kv_replicationd&ApplicationName=expiration_task",

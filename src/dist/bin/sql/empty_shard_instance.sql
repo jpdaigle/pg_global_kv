@@ -167,10 +167,11 @@ END;
 $$
 LANGUAGE plpgsql;
 
-CREATE FUNCTION kv.queue_deletes(out to_delete int, out where_clause text) AS $$
+CREATE OR REPLACE FUNCTION kv.queue_deletes(out to_delete int, out snapshot_ts timestamptz) AS $$
 DECLARE
   rec RECORD;
-  predicates text[];	
+  predicates text[];
+  where_clause text;
 BEGIN
   FOR rec IN (SELECT namespace, policy, time_length from expiry_to_interval) LOOP
     predicates = predicates || format(' (k.namespace = %L::kv.namespace AND k.expiration = %L::kv.expiration_policy and k.ts < %L) ', rec.namespace, rec.policy, now()-rec.time_length);
@@ -179,13 +180,14 @@ BEGIN
   
   where_clause = 'WHERE ' || array_to_string(predicates, ' OR ');
 
-  EXECUTE format('CREATE TEMP TABLE keys_to_delete AS (SELECT k.namespace, k.key from kv.t_kv k %s)', where_clause);
+  EXECUTE format('CREATE TEMP TABLE keys_to_delete AS (SELECT k.namespace, k.key from kv.t_kv k %s LIMIT 100000)', where_clause);
   EXECUTE format('CREATE TEMP TABLE keys_to_delete_now (namespace kv.namespace, key kv.key) ON COMMIT DELETE ROWS');
   to_delete = (SELECT COUNT(1) from keys_to_delete);    
+  snapshot_ts = now();
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE FUNCTION kv.delete_keys(in amt int, in expiry_where_clause text, out deleted int, out done boolean) AS $$
+CREATE OR REPLACE FUNCTION kv.delete_keys(in amt int, in snapshot_ts timestamptz, out deleted int, out done boolean) AS $$
 BEGIN
 
   EXECUTE format('INSERT INTO keys_to_delete_now SELECT namespace, key from keys_to_delete LIMIT %s', amt);
@@ -197,17 +199,16 @@ BEGIN
   WHERE k.key = n.key
   AND k.namespace = n.namespace;
 
-  -- expiry_where_clause will check again if the document should be deleted
-  EXECUTE format('WITH to_delete_now AS 
+  WITH to_delete_now AS 
   (SELECT namespace, key from keys_to_delete_now) 
   DELETE FROM kv.t_kv k 
   USING to_delete_now n 
-  %s 
+  WHERE k.ts < snapshot_ts
   AND k.key = n.key
-  AND k.namespace = n.namespace;', expiry_where_clause);
+  AND k.namespace = n.namespace;
 
   deleted = (SELECT COUNT(1) from keys_to_delete_now);
-  done = true;
+  done = count(1) = 0 FROM keys_to_delete;
 END;
 $$ LANGUAGE plpgsql;
 
