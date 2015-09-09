@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
+import java.sql.Timestamp;
 
 /**
  * Main workhorse of expiration.
@@ -56,15 +57,15 @@ public class ExpirationTask implements Callable<Object>
                         timeLengths.add(row.get("time_length"));
                     });
                     edb.insertData(namespaces, policies, timeLengths);
-                    Map<String, Object> row = handle.createQuery("SELECT to_delete, where_clause FROM kv.queue_deletes()").first();
+                    Map<String, Object> row = handle.createQuery("SELECT to_delete, snapshot_ts FROM kv.queue_deletes()").first();
                     int toDelete = (Integer) row.get("to_delete");
-                    String whereClause = (String) row.get("where_clause");
+                    Timestamp snapshotTs = (Timestamp) row.get("snapshot_ts");
                     boolean done = toDelete == 0;
                     while(!done)
                     {
-                        Map<String, Object> results = handle.createQuery("SELECT deleted, done FROM kv.delete_keys(:max_to_delete, :where_clause)")
+                        Map<String, Object> results = handle.createQuery("SELECT deleted, done FROM kv.delete_keys(:max_to_delete, :snapshot_ts)")
                                 .bind("max_to_delete", 1000)
-                                .bind("where_clause", whereClause)
+                                .bind("snapshot_ts", snapshotTs)
                                 .first();
                         done = (Boolean) results.get("done");
                         Uninterruptibles.sleepUninterruptibly(50, TimeUnit.MILLISECONDS);
