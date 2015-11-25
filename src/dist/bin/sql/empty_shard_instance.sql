@@ -98,6 +98,18 @@ COMMENT ON FUNCTION kv.delete(text, text) IS
 kv.clean_up_nulls() will clean these up.';
 
 
+CREATE OR REPLACE FUNCTION kv.putCTR(
+  ns         text,
+  k          text,
+  v          text,
+  expiration text
+) RETURNS text AS $$
+BEGIN
+  RETURN kv._putCTR(ns::kv.namespace, k::kv.key, v::json, expiration::kv.expiration_policy, now(), (SELECT instance_id FROM kv_config.my_info));
+END;
+$$
+LANGUAGE plpgsql;
+
 -----------------------------------------
 -- Internal functions
 -----------------------------------------
@@ -248,3 +260,68 @@ BEGIN
   UPDATE kv.peer_status_from SET min_horizon = buffer_ts WHERE peer = peer_id;
 END;
 $$ LANGUAGE plpgsql;
+
+CREATE FUNCTION kv._putCTR(
+  ns         kv.namespace,
+  k          kv.key,
+  v          json,
+  expire     kv.expiration_policy,
+  tstamp     timestamp with time zone,
+  peer_num   int
+) RETURNS put_result AS $$
+DECLARE
+  iteration_count int;
+BEGIN
+  FOR iteration_count IN 1..5 LOOP
+    -- first try to update the key
+    -- does the key exist?
+    PERFORM value FROM kv.t_kv
+    WHERE namespace = ns AND key = k AND ts <= tstamp;
+
+    -- if exists, merge the new json file wit the old one
+    IF found THEN
+      UPDATE kv.t_kv
+      SET value =(
+          SELECT * 
+          FROM kv._increamentJson((SELECT value FROM kv.t_kv WHERE namespace = ns AND key = k AND ts <= tstamp) , v) AS "j_final"
+        ), expiration = expire, ts = tstamp, peer = peer_num
+      WHERE namespace = ns AND key = k AND ts <= tstamp;
+      RETURN 'UPDATE';
+    END IF;
+
+    -- if not, insert new key-value pair
+    BEGIN
+      RETURN kv._put(namespace, k, v, expire, tstamp, peer_num);
+    END;
+  END LOOP;
+
+  -- If we got here we tried 5 times and failed.  That should be impossible (at most we should ever make two passes
+  -- through this code).  It is an unexpected case but sending the database into an infinite loop is really a bad idea.
+  -- Lets raise an error; because failing a single request is far better than bringing the server down.
+  RAISE 'Upsert failed!  Completely unexpected. Is there high concurrency on this single row?';
+END;
+$$
+LANGUAGE plpgsql;
+
+
+-- combining two jsons
+CREATE FUNCTION kv._incrementJson(
+    v_old   json,
+    v_new   json
+) RETURNS json AS 
+$$
+BEGIN
+SELECT concat('{', string_agg(to_json("key") || ':' || "value", ','), '}')::json
+FROM (
+    SELECT key, SUM(value::text::int) AS value
+    FROM 
+    (
+        SELECT * from json_each("v_old")
+        UNION ALL
+        SELECT * from json_each("v_new")
+    ) as "results" GROUP BY key
+) AS v_final;
+END;
+$$
+LANGUAGE plpgsql;
+    
