@@ -219,12 +219,12 @@ DECLARE
 BEGIN
 SELECT json_agg(key, value)
 FROM (
-    SELECT key, SUM(value::text::int) AS value
+    SELECT key, SUM(value::int) AS value
     FROM 
     (
-        SELECT * from json_each("v_old")
+        SELECT * from json_each_text("v_old")
         UNION ALL
-        SELECT * from json_each("v_new")
+        SELECT * from json_each_text("v_new")
     ) as "results" GROUP BY key
 ) AS "final_results"
 WHERE value IS NOT NULL
