@@ -283,7 +283,7 @@ BEGIN
       UPDATE kv.t_kv
       SET value =(
           SELECT * 
-          FROM kv._increamentJson((SELECT value FROM kv.t_kv WHERE namespace = ns AND key = k AND ts <= tstamp) , v) AS "j_final"
+          FROM kv._incrementJson((SELECT value FROM kv.t_kv WHERE namespace = ns AND key = k AND ts <= tstamp) , v) AS "j_final"
         ), expiration = expire, ts = tstamp, peer = peer_num
       WHERE namespace = ns AND key = k AND ts <= tstamp;
       RETURN 'UPDATE';
@@ -291,7 +291,7 @@ BEGIN
 
     -- if not, insert new key-value pair
     BEGIN
-      RETURN kv._put(namespace, k, v, expire, tstamp, peer_num);
+      RETURN kv._put(ns, k, v, expire, tstamp, peer_num);
     END;
   END LOOP;
 
@@ -310,6 +310,8 @@ CREATE FUNCTION kv._incrementJson(
     v_new   json
 ) RETURNS json AS 
 $$
+DECLARE 
+  v_final json;
 BEGIN
 SELECT concat('{', string_agg(to_json("key") || ':' || "value", ','), '}')::json
 FROM (
@@ -320,7 +322,9 @@ FROM (
         UNION ALL
         SELECT * from json_each("v_new")
     ) as "results" GROUP BY key
-) AS v_final;
+) AS "final_results"
+INTO v_final;
+RETURN v_final;
 END;
 $$
 LANGUAGE plpgsql;
