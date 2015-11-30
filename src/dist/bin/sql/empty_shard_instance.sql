@@ -278,7 +278,7 @@ BEGIN
     PERFORM value FROM kv.t_kv
     WHERE namespace = ns AND key = k AND ts <= tstamp;
 
-    -- if exists, merge the new json file wit the old one
+    -- if exists, merge the new json file with the old one
     IF found THEN
       UPDATE kv.t_kv
       SET value =(
@@ -291,7 +291,8 @@ BEGIN
 
     -- if not, insert new key-value pair
     BEGIN
-      RETURN kv._put(ns, k, v, expire, tstamp, peer_num);
+      INSERT INTO kv.t_kv(namespace, key, value, expiration, ts, peer) VALUES (ns, k, v, expire, tstamp, peer_num);
+      RETURN 'INSERT';
     END;
   END LOOP;
 

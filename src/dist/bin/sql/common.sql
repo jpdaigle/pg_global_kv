@@ -138,6 +138,6 @@ in order to create a foreign table of it.  So yes we recurse into ensure_foreign
 
 CREATE TYPE kv.expiration_policy AS ENUM ('NO_EXPIRE', 'EXPIRY_1', 'EXPIRY_2', 'EXPIRY_3', 'EXPIRY_4', 'EXPIRY_5', 'EXPIRY_6', 'EXPIRY_7');
 -- Allows for distinct key namespaces in the same server 
-CREATE TYPE kv.namespace         AS ENUM ('DEFAULT', 'INSIGHT', 'CTR');  -- TODO: namespaces belong in config, but we need to roll this out, 
+CREATE TYPE kv.namespace         AS ENUM ('DEFAULT', 'INSIGHT', 'CLICK_THROUGH_RATE');  -- TODO: namespaces belong in config, but we need to roll this out, 
                                                                   --       hard code for now. 
 
