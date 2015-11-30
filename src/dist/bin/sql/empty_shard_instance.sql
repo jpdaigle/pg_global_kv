@@ -274,18 +274,15 @@ DECLARE
 BEGIN
   FOR iteration_count IN 1..5 LOOP
     -- first try to update the key
-    -- does the key exist?
-    PERFORM value FROM kv.t_kv
-    WHERE namespace = ns AND key = k AND ts <= tstamp;
-
-    -- if exists, merge the new json file with the old one
-    IF found THEN
-      UPDATE kv.t_kv
+    -- if the key exists, merge the new json file with the old one
+    UPDATE kv.t_kv
       SET value =(
           SELECT * 
           FROM kv._incrementJson((SELECT value FROM kv.t_kv WHERE namespace = ns AND key = k AND ts <= tstamp) , v) AS "j_final"
         ), expiration = expire, ts = tstamp, peer = peer_num
-      WHERE namespace = ns AND key = k AND ts <= tstamp;
+    WHERE namespace = ns AND key = k AND ts <= tstamp;
+      
+    IF found THEN
       RETURN 'UPDATE';
     END IF;
 
