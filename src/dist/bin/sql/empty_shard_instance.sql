@@ -226,7 +226,10 @@ FROM (
         UNION ALL
         SELECT * from json_each_text("v_new")
     ) as "results"
-    WHERE (v_new->>key) IS NOT NULL
+    -- We are doing key deletion inside of patch.  This code only works because:
+    --   json null != sql null
+    -- This select rows where it is not the case that the key exists and the key is set to null.
+    WHERE NOT ((v_new->key) IS NOT NULL AND (v_new->>key) IS NULL)
     GROUP BY key
 ) AS "final_results"
 INTO v_final;
