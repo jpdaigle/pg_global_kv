@@ -180,10 +180,7 @@ BEGIN
     -- first try to update the key
     -- if the key exists, merge the new json file with the old one
     UPDATE kv.t_kv
-      SET value =(
-          SELECT * 
-          FROM kv._json_patch_numeric((SELECT value FROM kv.t_kv WHERE namespace = ns AND key = k AND ts <= tstamp) , v) AS "j_final"
-        ), expiration = expire, ts = tstamp, peer = peer_num
+      SET value = kv._json_patch_numeric(value , v), expiration = expire, ts = tstamp, peer = peer_num
     WHERE namespace = ns AND key = k AND ts <= tstamp;
       
     IF found THEN
@@ -210,26 +207,31 @@ LANGUAGE plpgsql;
 
 -- combining two jsons
 CREATE FUNCTION kv._json_patch_numeric(
-    v_old   json,
-    v_new   json
+  v_old   json,
+  v_new   json
 ) RETURNS json AS 
 $$
 DECLARE 
   v_final json;
 BEGIN
-SELECT json_agg(key, value)
-FROM (
+  SELECT concat('{', string_agg(to_json("key") || ':' || "value", ','), '}')::json
+  FROM (
     SELECT key, SUM(value::int) AS value
     FROM 
     (
-        SELECT * from json_each_text("v_old")
+      SELECT * from json_each_text("v_old")
         UNION ALL
-        SELECT * from json_each_text("v_new")
-    ) as "results" GROUP BY key
-) AS "final_results"
-WHERE value IS NOT NULL
-INTO v_final;
-RETURN v_final;
+      SELECT * from json_each_text("v_new")
+    ) as "results" 
+    -- We are doing key deletion inside of patch.  This code only works because:
+    --   json null != sql null
+    -- This select rows where it is not the case that the key exists and the key is set to null.
+    WHERE NOT ((v_new->key) IS NOT NULL AND (v_new->>key) IS NULL)
+    GROUP BY key
+  ) AS "final_results"
+  WHERE value IS NOT NULL
+  INTO v_final;
+  RETURN v_final;
 END;
 $$
 LANGUAGE plpgsql;
