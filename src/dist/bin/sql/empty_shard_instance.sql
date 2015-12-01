@@ -98,6 +98,18 @@ COMMENT ON FUNCTION kv.delete(text, text) IS
 kv.clean_up_nulls() will clean these up.';
 
 
+CREATE OR REPLACE FUNCTION kv.patch_numeric(
+  ns         text,
+  k          text,
+  v          text,
+  expiration text
+) RETURNS text AS $$
+BEGIN
+  RETURN kv._patch_numeric(ns::kv.namespace, k::kv.key, v::json, expiration::kv.expiration_policy, now(), (SELECT instance_id FROM kv_config.my_info));
+END;
+$$
+LANGUAGE plpgsql;
+
 -----------------------------------------
 -- Internal functions
 -----------------------------------------
@@ -149,6 +161,74 @@ BEGIN
   -- through this code).  It is an unexpected case but sending the database into an infinite loop is really a bad idea.
   -- Lets raise an error; because failing a single request is far better than bringing the server down.
   RAISE 'Upsert failed!  Completely unexpected. Is there high concurrency on this single row?';
+END;
+$$
+LANGUAGE plpgsql;
+
+CREATE FUNCTION kv._patch_numeric(
+  ns         kv.namespace,
+  k          kv.key,
+  v          json,
+  expire     kv.expiration_policy,
+  tstamp     timestamp with time zone,
+  peer_num   int
+) RETURNS put_result AS $$
+DECLARE
+  iteration_count int;
+BEGIN
+  FOR iteration_count IN 1..5 LOOP
+    -- first try to update the key
+    -- if the key exists, merge the new json file with the old one
+    UPDATE kv.t_kv
+      SET value = kv._json_patch_numeric(value , v), expiration = expire, ts = tstamp, peer = peer_num
+    WHERE namespace = ns AND key = k AND ts <= tstamp;
+      
+    IF found THEN
+      RETURN 'UPDATE';
+    END IF;
+
+    -- if not, insert new key-value pair
+    BEGIN
+      INSERT INTO kv.t_kv(namespace, key, value, expiration, ts, peer) VALUES (ns, k, v, expire, tstamp, peer_num);
+      RETURN 'INSERT';
+    EXCEPTION WHEN unique_violation THEN
+      -- do nothing
+    END;
+  END LOOP;
+
+  -- If we got here we tried 5 times and failed.  That should be impossible (at most we should ever make two passes
+  -- through this code).  It is an unexpected case but sending the database into an infinite loop is really a bad idea.
+  -- Lets raise an error; because failing a single request is far better than bringing the server down.
+  RAISE 'Upsert failed!  Completely unexpected. Is there high concurrency on this single row?';
+END;
+$$
+LANGUAGE plpgsql;
+
+
+-- combining two jsons
+CREATE FUNCTION kv._json_patch_numeric(
+  v_old   json,
+  v_new   json
+) RETURNS json AS 
+$$
+BEGIN
+  RETURN (
+    SELECT concat('{', string_agg(to_json("key") || ':' || "value", ','), '}')::json
+    FROM (
+      SELECT key, SUM(value::bigint) AS value
+      FROM 
+      (
+        SELECT * from json_each_text("v_old")
+          UNION ALL
+        SELECT * from json_each_text("v_new")
+      ) as "results" 
+      -- We are doing key deletion inside of patch.  This code only works because:
+      --   json null != sql null
+      -- This select rows where it is not the case that the key exists and the key is set to null.
+      WHERE NOT ((v_new->key) IS NOT NULL AND (v_new->>key) IS NULL)
+      GROUP BY key
+    ) AS "final_results"  
+  );
 END;
 $$
 LANGUAGE plpgsql;
@@ -248,3 +328,4 @@ BEGIN
   UPDATE kv.peer_status_from SET min_horizon = buffer_ts WHERE peer = peer_id;
 END;
 $$ LANGUAGE plpgsql;
+    
