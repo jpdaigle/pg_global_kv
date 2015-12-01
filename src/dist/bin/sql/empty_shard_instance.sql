@@ -211,26 +211,24 @@ CREATE FUNCTION kv._json_patch_numeric(
   v_new   json
 ) RETURNS json AS 
 $$
-DECLARE 
-  v_final json;
 BEGIN
-  SELECT concat('{', string_agg(to_json("key") || ':' || "value", ','), '}')::json
-  FROM (
-    SELECT key, SUM(value::int) AS value
-    FROM 
-    (
-      SELECT * from json_each_text("v_old")
-        UNION ALL
-      SELECT * from json_each_text("v_new")
-    ) as "results" 
-    -- We are doing key deletion inside of patch.  This code only works because:
-    --   json null != sql null
-    -- This select rows where it is not the case that the key exists and the key is set to null.
-    WHERE NOT ((v_new->key) IS NOT NULL AND (v_new->>key) IS NULL)
-    GROUP BY key
-  ) AS "final_results"
-  INTO v_final;
-  RETURN v_final;
+  RETURN (
+    SELECT concat('{', string_agg(to_json("key") || ':' || "value", ','), '}')::json
+    FROM (
+      SELECT key, SUM(value::bigint) AS value
+      FROM 
+      (
+        SELECT * from json_each_text("v_old")
+          UNION ALL
+        SELECT * from json_each_text("v_new")
+      ) as "results" 
+      -- We are doing key deletion inside of patch.  This code only works because:
+      --   json null != sql null
+      -- This select rows where it is not the case that the key exists and the key is set to null.
+      WHERE NOT ((v_new->key) IS NOT NULL AND (v_new->>key) IS NULL)
+      GROUP BY key
+    ) AS "final_results"  
+  );
 END;
 $$
 LANGUAGE plpgsql;
