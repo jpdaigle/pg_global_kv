@@ -229,7 +229,6 @@ BEGIN
     WHERE NOT ((v_new->key) IS NOT NULL AND (v_new->>key) IS NULL)
     GROUP BY key
   ) AS "final_results"
-  WHERE value IS NOT NULL
   INTO v_final;
   RETURN v_final;
 END;
