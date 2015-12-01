@@ -225,9 +225,10 @@ FROM (
         SELECT * from json_each_text("v_old")
         UNION ALL
         SELECT * from json_each_text("v_new")
-    ) as "results" GROUP BY key
+    ) as "results"
+    WHERE (v_new->>key) IS NOT NULL
+    GROUP BY key
 ) AS "final_results"
-WHERE value IS NOT NULL
 INTO v_final;
 RETURN v_final;
 END;
