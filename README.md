@@ -49,6 +49,14 @@ After running the install script select one machine and run `./create_first_cata
     INSERT INTO shard_instance (hostname, port, shard_name)
         SELECT hostname, port, name FROM catalog_instance CROSS JOIN shard_name;
     UPDATE kv_config.my_info SET hostname = 'tmtest01n.ndmad2';
+    INSERT INTO expiry_to_interval (namespace, policy, time_length)
+         VALUES ('DEFAULT', 'EXPIRY_1', '2 days'),
+                ('DEFAULT', 'EXPIRY_2', '10 days'),
+                ('DEFAULT', 'EXPIRY_3', '1 month'),
+                ('DEFAULT', 'EXPIRY_4', '3 months'),
+                ('DEFAULT', 'EXPIRY_5', '7 months'),
+                ('DEFAULT', 'EXPIRY_6', '13 months'),
+                ('DEFAULT', 'EXPIRY_7', '25 months');
     
 
 Then run `./setup_parade.sh`.  This will log into all the servers configured and setup all of the appropriate databases, and push the config to the entire parade.
@@ -70,6 +78,8 @@ When replicationd starts up it connects to the catalog database and selects from
 
 `ReplicationTask`s, each with there own postgres connection.  On startup, each of these connections attempt to create the foreign tables needed to complete replication.  Once this is done, replication just repeatedly calls `kv.replicate` to pull from that peer.
 
+#### Expiry Daemon
+The expiry daemon enforces expiry.  Every 5 minutes it will select the next shard.  It will connect to that shard and find the next group of items that have expired.  It will then delete those rows in a throttled manner.  Expiry is enforce independently on each machine.  Postgres 
 
 ### High Availability
 For now high availability within each zone is assumed to be accomplished via Postgres' physical streaming replication.
@@ -84,7 +94,6 @@ _Listed in no particular order_
 
 * Write automated tests.
 * Replicationd should reload it config when the `config_push` notification is sent by `kv_config.push_catalog_changes()`.
-* Replicationd should enforce expiry.
 * Replicationd should clean up nulls/deletes.
 * Rethink schema naming conventions in PL/pgSQL.  Choices don't feel very consistent.
 * Dynamic throttling of replication, (see the sleep in `ReplicationTask.java`)
