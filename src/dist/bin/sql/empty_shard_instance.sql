@@ -233,16 +233,15 @@ END;
 $$
 LANGUAGE plpgsql;
 
--- TODO this function won't work until we start populating peer_status_to
 CREATE FUNCTION kv.clean_up_nulls() RETURNS VOID AS $$
 DECLARE
   horizon timestamp with time zone;
 BEGIN
   SELECT min(min_horizon) INTO horizon FROM
-    (SELECT min_horizon FROM kv.min_horizons_to_remotes
+    (SELECT min_horizon FROM kv.peer_status_to
      UNION ALL
-     SELECT min_horizon FROM kv.min_horizons_from_remotes) f;
-  DELETE FROM t_kv WHERE ts < horizon AND payload IS NULL;
+     SELECT min_horizon FROM kv.peer_status_from) f;
+  DELETE FROM kv.t_kv WHERE ctid = ANY(ARRAY(SELECT ctid FROM kv.t_kv WHERE ts < horizon AND value IS NULL LIMIT 100000));
 END;
 $$
 LANGUAGE plpgsql;
@@ -292,13 +291,21 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE FUNCTION kv_config.ensureRemoteShardConnection(hostname text, port int, dbname text) RETURNS text AS $$
+CREATE FUNCTION kv_config.ensureRemoteShardConnection(hostname text, port int, dbname text, out remote_t_kv text, out remote_peer_status_to text) AS $$
 DECLARE
   server_name text;
+  peer_status_to text;
+  my_id int = instance_id FROM kv_config.my_info;
+  peer_knows_of_me boolean;
 BEGIN
   server_name = kv_config.ensure_foreign_server(hostname, port, dbname);
   PERFORM kv_config.ensure_user_mapping(server_name);
-  RETURN kv_config.ensure_foreign_table(server_name, 'kv', 't_kv');
+  remote_peer_status_to = kv_config.ensure_foreign_table(server_name, 'kv', 'peer_status_to');
+  EXECUTE format('SELECT count(1) <> 0 FROM %s WHERE peer = %L', remote_peer_status_to, my_id) INTO peer_knows_of_me;
+  IF NOT peer_knows_of_me THEN
+    EXECUTE format('INSERT INTO %s VALUES (%L, %L)', remote_peer_status_to, my_id, '1970-01-01');
+  END IF;
+  remote_t_kv = kv_config.ensure_foreign_table(server_name, 'kv', 't_kv');
 END;
 $$ LANGUAGE plpgsql;
 
@@ -329,3 +336,11 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
     
+CREATE FUNCTION kv.update_remote_peer_status(remote_table regclass, peer_id int) RETURNS VOID AS $$
+DECLARE
+  min_horizon_from timestamptz = min_horizon FROM kv.peer_status_from WHERE peer = peer_id;
+  my_id int = instance_id FROM kv_config.my_info;
+BEGIN
+  EXECUTE format('UPDATE %s SET min_horizon = %L WHERE peer = %L', remote_table, min_horizon_from, my_id);
+END;
+$$ LANGUAGE plpgsql;
