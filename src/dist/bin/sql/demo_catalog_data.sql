@@ -1,3 +1,6 @@
+-- Copyright (c) 2016 TripAdvisor
+-- Licensed under the PostgreSQL License
+-- https://opensource.org/licenses/postgresql
 INSERT INTO shard_name SELECT 'kv' || generate_series(1, 2) AS name;
 
 INSERT INTO catalog_instance(hostname, port)

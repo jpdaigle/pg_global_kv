@@ -1,3 +1,6 @@
+-- Copyright (c) 2016 TripAdvisor
+-- Licensed under the PostgreSQL License
+-- https://opensource.org/licenses/postgresql
 CREATE SCHEMA kv;
 COMMENT On SCHEMA kv IS 'This is where all the data lives in a data node';
 

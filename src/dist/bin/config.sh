@@ -1,3 +1,6 @@
+# Copyright (c) 2016 TripAdvisor
+# Licensed under the PostgreSQL License
+# https://opensource.org/licenses/postgresql
 
 # User used for all cluster admin actions
 # must also have own databse to login to during inital setup

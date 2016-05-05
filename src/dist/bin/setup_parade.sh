@@ -1,4 +1,7 @@
 #! /bin/bash
+# Copyright (c) 2016 TripAdvisor
+# Licensed under the PostgreSQL License
+# https://opensource.org/licenses/postgresql
 set -e
 cd $(dirname $0)
 source config.sh

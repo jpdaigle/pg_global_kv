@@ -1,3 +1,6 @@
+-- Copyright (c) 2016 TripAdvisor
+-- Licensed under the PostgreSQL License
+-- https://opensource.org/licenses/postgresql
 -----------------------------------------
 -- ACL
 -----------------------------------------
