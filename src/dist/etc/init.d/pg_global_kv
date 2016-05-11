@@ -1,47 +1,32 @@
-#!/bin/sh
-### BEGIN INIT INFO
-# Provides:          pg_global_kv
-# Required-Start:    $local_fs $network $named $time $syslog
-# Required-Stop:     $local_fs $network $named $time $syslog
-# Default-Start:     2 3 4 5
-# Default-Stop:      0 1 6
-# Description:       <DESCRIPTION>
-### END INIT INFO
-
-# TODO: honestly these isn't a good initd script but it works for now.
+#!/bin/bash
+# Copyright (c) 2016 TripAdvisor
+# Licensed under the PostgreSQL License
+# https://opensource.org/licenses/postgresql
 
 NAME=pg_global_kv
-SCRIPT=/opt/pg_global_kv/bin/pg_global_kv
-RUNAS=postgres
+SCRIPT=/opt/${NAME}/bin/${NAME}
+USER=postgres
 
 PIDFILE=/var/run/${NAME}.pid
 LOGFILE=/var/log/${NAME}.log
 
+source /etc/init.d/functions
 source /opt/pg_global_kv/bin/config.sh
 
+
+start_daemon() {
+  $1 &> $2 & echo $! > $3
+}
+export -f start_daemon
+
 start() {
-  if [ -f /var/run/$PIDNAME ] && kill -0 $(cat /var/run/$PIDNAME); then
-    echo 'Service already running' >&2
-    return 1
-  fi
-  echo 'Starting service...' >&2
-  #TODO: this feels very wrong.  Code reviewers.  What is the right way to do this?
-  # I was getting a permissions error on the logfile creation.
-  touch $LOGFILE
-  chown $RUNAS $LOGFILE
-  local CMD="$SCRIPT &> \"$LOGFILE\" & echo \$!"
-  su -c "$CMD" $RUNAS > "$PIDFILE"
-  echo 'Service started' >&2
+  touch $LOGFILE $PIDFILE
+  chown $USER $LOGFILE $PIDFILE
+  action "Starting pg_global_kv deamon" daemon --user $USER --pidfile $PIDFILE "start_daemon $SCRIPT $LOGFILE $PIDFILE"
 }
 
 stop() {
-  if [ ! -f "$PIDFILE" ] || ! kill -0 $(cat "$PIDFILE"); then
-    echo 'Service not running' >&2
-    return 1
-  fi
-  echo 'Stopping serviceâ€¦' >&2
-  kill -15 $(cat "$PIDFILE") && rm -f "$PIDFILE"
-  echo 'Service stopped' >&2
+  action "Stopping pg_global_kv deamon" killproc -p $PIDFILE $SCRIPT
 }
 
 case "$1" in
@@ -51,10 +36,13 @@ case "$1" in
   stop)
     stop
     ;;
-  retart)
+  status)
+    status -p $PIDFILE $SCRIPT
+    ;;
+  restart)
     stop
     start
     ;;
   *)
-    echo "Usage: $0 {start|stop|restart}"
+    echo "Usage: $0 {start|stop|status|restart}"
 esac
