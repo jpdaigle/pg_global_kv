@@ -1,3 +1,6 @@
+// Copyright (c) 2016 TripAdvisor
+// Licensed under the PostgreSQL License
+// https://opensource.org/licenses/postgresql
 package com.tripadvisor.postgres.pg_global_kv;
 
 import com.google.common.util.concurrent.Uninterruptibles;
@@ -7,6 +10,7 @@ import org.skife.jdbi.v2.*;
 import org.skife.jdbi.v2.exceptions.CallbackFailedException;
 import org.skife.jdbi.v2.util.StringMapper;
 
+import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
@@ -45,23 +49,32 @@ public class ReplicationTask implements Callable<Object>
     {
         try
         {
-            String table = m_shardDBI.withHandle(this::ensureRemoteConfig);
-
+            Map<String, Object> tables = m_shardDBI.withHandle(this::ensureRemoteConfig);
+            LOGGER.info(tables);
+            long cycleCount = 0;
             // Outer loop for reconnecting on error
             while(true)
             {
                 try (Handle handle = m_shardDBI.open())
                 {
-                    Update update = handle.createStatement("SELECT kv.replicate(:table, :source_id);")
-                            .bind("table", table)
+                    Update replicationQuery = handle.createStatement("SELECT kv.replicate(:table, :source_id);")
+                            .bind("table", tables.get("remote_t_kv"))
+                            .bind("source_id", m_sourceId);
+
+                    Update pushPeerStatus = handle.createStatement("SELECT kv.update_remote_peer_status(:table, :source_id);")
+                            .bind("table", tables.get("remote_peer_status_to"))
                             .bind("source_id", m_sourceId);
 
                     // This is the main replication loop.
                     while (true)
                     {
-                        update.execute();
+                        replicationQuery.execute();
+                        if(cycleCount++ % 100 == 0)
+                        {
+                            pushPeerStatus.execute();
+                        }
                         // TODO dynamic throttling
-                        Uninterruptibles.sleepUninterruptibly(100, TimeUnit.MILLISECONDS);
+                        Uninterruptibles.sleepUninterruptibly(10, TimeUnit.MILLISECONDS);
                     }
 
                 }
@@ -89,13 +102,13 @@ public class ReplicationTask implements Callable<Object>
         return null;
     }
 
-    private String ensureRemoteConfig(Handle h)
+    private Map<String, Object> ensureRemoteConfig(Handle h)
     {
-        return h.createQuery("SELECT kv_config.ensureRemoteShardConnection(:host, :port, :dbname)")
+        return h.createQuery("SELECT * FROM kv_config.ensureRemoteShardConnection(:host, :port, :dbname)")
                 .bind("host", m_sourceHost)
                 .bind("port", m_sourcePort)
                 .bind("dbname", m_shardName)
-                .map(StringMapper.FIRST).first();
+                .first();
     }
 
 

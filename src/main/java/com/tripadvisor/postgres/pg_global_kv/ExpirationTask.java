@@ -1,3 +1,6 @@
+// Copyright (c) 2016 TripAdvisor
+// Licensed under the PostgreSQL License
+// https://opensource.org/licenses/postgresql
 package com.tripadvisor.postgres.pg_global_kv;
 
 import com.google.common.util.concurrent.Uninterruptibles;
@@ -43,9 +46,9 @@ public class ExpirationTask implements Callable<Object>
         {
             for(DBI shardDBI : m_shardDBIs)
             {
-                LOGGER.info("Starting Shard");
                 try (Handle handle = shardDBI.open())
                 {
+                    LOGGER.info("Starting Shard " + handle.getConnection().getCatalog());
                     ExpiryDataBatcher edb = handle.attach(ExpiryDataBatcher.class);
                     edb.createExpiryToIntervalTable();
                     List<Object> namespaces = new ArrayList<>();
@@ -70,7 +73,8 @@ public class ExpirationTask implements Callable<Object>
                         done = (Boolean) results.get("done");
                         Uninterruptibles.sleepUninterruptibly(50, TimeUnit.MILLISECONDS);
                     }
-                    LOGGER.info("Finished Shard, Waiting");
+                    handle.update("SELECT kv.clean_up_nulls()");
+                    LOGGER.info("Finished Shard " + handle.getConnection().getCatalog());
                 }
                 catch (Exception e)
                 {
@@ -81,7 +85,7 @@ public class ExpirationTask implements Callable<Object>
         }
     }
 
-    public static interface ExpiryDataBatcher
+    public interface ExpiryDataBatcher
     {
         @SqlBatch("insert into expiry_to_interval (namespace, policy, time_length) values (CAST(:namespace as kv.namespace), CAST(:policy as kv.expiration_policy), :time_length)")
         void insertData(@Bind("namespace") List<Object> namespaces,

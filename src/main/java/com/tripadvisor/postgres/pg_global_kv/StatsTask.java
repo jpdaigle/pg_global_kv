@@ -1,3 +1,6 @@
+// Copyright (c) 2016 TripAdvisor
+// Licensed under the PostgreSQL License
+// https://opensource.org/licenses/postgresql
 package com.tripadvisor.postgres.pg_global_kv;
 
 import com.google.common.util.concurrent.Uninterruptibles;

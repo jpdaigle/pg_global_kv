@@ -1,3 +1,6 @@
+-- Copyright (c) 2016 TripAdvisor
+-- Licensed under the PostgreSQL License
+-- https://opensource.org/licenses/postgresql
 -- Create Users
 CREATE OR REPLACE FUNCTION kv_config.create_role_if_not_exists(role text, login boolean) RETURNS VOID AS $$
 BEGIN
