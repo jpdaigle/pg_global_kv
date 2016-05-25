@@ -1,13 +1,13 @@
 # Postgres Global Key Value Store
 ## Introduction
-Ultimately, `pg_global_kv` is an exercise in pragmatism.  We needed a way to store user session state and personalization data in a highly scalable multmaster manner.  We tried a NoSQL solution but we couldn't get it to perform stably in production.   
+Ultimately, `pg_global_kv` is an exercise in pragmatism.  We needed a way to store user session state and personalization data in a highly scalable multimaster manner.  We tried a NoSQL solution but we couldn't get it to perform stably in production.   
 
 We turned to our data center workhorse, Postgres, at the release we were comfortable running in production, 9.3, and built a new replication technology on top of it with minimal code.
 
 Once built, we realized had a scalable rock solid tool that just worked.  It doesn't do everything and management is still pretty manual, but its also simple enough that you could sit down and read the entire thing in just a couple of hours.
 
 ## High level design
-At the core of `pg_global_kv` is a put function which implements upsert.  (yes, 9.5 has native upsert, but this is built on 9.3).  Its the standard `pl/pgsql` upsert from the docs with one major modification.  Do not assume that your update wins unconditionally.  Check the timestamp column as well and compare to `now()`.  In pseudocode (actual implementation is different because concurrency),
+At the core of `pg_global_kv` is a put function which implements upsert.  (yes, 9.5 has native upsert, but this is built on 9.3).  It's the standard `pl/pgsql` upsert from the docs with one major modification.  Do not assume that your update wins unconditionally.  Check the timestamp column as well and compare to `now()`.  In pseudocode (actual implementation is different because concurrency),
 
     FOR 1..max_tries LOOP
       SELECT WHERE key
@@ -20,15 +20,15 @@ At the core of `pg_global_kv` is a put function which implements upsert.  (yes, 
       END IF
     END LOOP
 
-Clients call `kv.put()` to insert data into the kv store.  What is interesting about `pg_global_kv` is that it also uses uses the put function for replication.  It makes some concessions about replication consistency in exchange for performance.
+Clients call `kv.put()` to insert data into the kv store.  What is interesting about `pg_global_kv` is that it also uses uses the `put` function for replication.  It makes some concessions about replication consistency in exchange for performance.
 
-Consitency considerations:
+Consistency considerations:
 
 * A single key will always transition from consistent state to consistent state.
 * Eventually a single key will always converge to the same value on every server.
 * If key A is written and then key B is written they might not be played back in that order.
 
-With these conciderations you can do a logical multimaster replication without a log table and without consulting the WAL.  Instead you can replicate directly off the data storage table using the timestamp column as the guide.  With the postgres foriegn data wrapper its fairly straig forward to do.  Again in vaguely related pseudocode:
+With these considerations you can do a logical multimaster replication without a log table and without consulting the WAL.  Instead you can replicate directly off the data storage table using the timestamp column as the guide.  With the postgres foreign data wrapper it's fairly straightforward to do.  Again in vaguely related pseudocode:
     
     min_horizon_so_far = epoch
     LOOP
@@ -41,7 +41,7 @@ With these conciderations you can do a logical multimaster replication without a
 
 Unfortunately you can't implement that loop in pure `pl/pgsql` because you need to enter and exit a transaction in order for the rows to become visible.  In >= 9.4 you could use, dynamic background workers, but in 9.3 you need a very simple companion daemon which just calls the replication function in a loop.
 
-The other important concept is this `max_ts`.  Its crticial for making this replication strategy work.  Assuming all transaction has settled, you can just pull over time ranges repeatedly.  However, concider the following situation:
+The other important concept is this `max_ts`.  It's critical for making this replication strategy work.  Assuming all transaction has settled, you can just pull over time ranges repeatedly.  However, consider the following situation:
 
     Time 1: Put call begins with now() =  1
     Time 2: Replication runs for the window 1..2
@@ -199,7 +199,7 @@ All that remains is to run `service pg_global_kv start` on each of hosts.  Repli
 ### Basic Design
 Each host has a postgres instance and an instance of replicationd.
 
-In each postgres server there is a catalog database.  This catalog database has complete view of the configuration of the entire parade.  The postgres function `kv_config.push_catalog_changes()` pushes the current state of your catalog throughout the parade and will (TODO) notify all of the  replicationd daemons to reload their config.
+In each postgres server there is a catalog database.  This catalog database has complete view of the configuration of the entire parade.  The postgres function `kv_config.push_catalog_changes()` pushes the current state of your catalog throughout the parade and will (TODO) notify all of the replicationd daemons to reload their config.
 
 When replicationd starts up it connects to the catalog database and selects from a view named `local_replication_topology`.  This view tells it what `shard_instances` live locally and where it needs to pull from.  It uses this information to construct instances of `ReplicationTask` each on their own thread.  In the current mesh topology this means it creates
 
